@@ -1,0 +1,68 @@
+name: Test
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: csfleak_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        working-directory: app
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        working-directory: app
+        env:
+          TEST_PSEUDONYMISATION_KEY: ${{ secrets.TEST_PSEUDONYMISATION_KEY }}
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: csfleak_test
+          DB_USER: test
+          DB_PASSWORD: test
+          APP_ENV: development
+          # Azure settings — not used in tests but required by pydantic-settings
+          AZURE_TENANT_ID: test-tenant-id
+          AZURE_CLIENT_ID: test-client-id
+          AZURE_KEY_VAULT_URL: https://test-kv.vault.azure.net/
+          SECRET_KEY: test-session-secret-key-for-ci-only
+        run: |
+          pytest \
+            --cov=. \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --cov-fail-under=80 \
+            -v
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: app/coverage.xml

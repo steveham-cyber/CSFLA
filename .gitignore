@@ -1,0 +1,44 @@
+# Environment and secrets — never commit
+.env
+.env.*
+!.env.example
+local.settings.json
+*.key
+*.pem
+*.pfx
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.Python
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Azure
+.azure/
+azuredeploy.parameters.local.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code project config
+.claude/
+
+# Uploads / staging (never commit real data)
+uploads/
+staging/
+*.csv
+!app/tests/fixtures/*.csv

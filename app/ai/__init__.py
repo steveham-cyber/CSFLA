@@ -1,0 +1,1 @@
+# AI analysis module — locked until Anthropic DPA is in place (ACTIONS.md A-02)

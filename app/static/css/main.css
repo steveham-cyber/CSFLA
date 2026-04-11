@@ -1,0 +1,396 @@
+/* ============================================================
+   CSFLA Research Application — Design Tokens & Base Styles
+   Source: Quisk Style Guide, 1 Sept 2021
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap');
+
+/* ── Colour tokens ─────────────────────────────────────────── */
+:root {
+  /* Brand blues */
+  --color-primary:        #334D6E;   /* title / heading blue */
+  --color-primary-mid:    #4C98C6;   /* buttons, CTAs, nav active state */
+  --color-primary-bright: #438AE1;   /* links, interactive elements */
+  --color-primary-deep:   #29508E;   /* gradient anchor */
+  --color-teal:           #286F8C;   /* secondary gradient / teal accent */
+
+  /* Text */
+  --color-text-body:      #424752;
+  --color-text-muted:     rgba(66, 71, 82, 0.7);
+  --color-text-on-dark:   #FFFFFF;
+  --color-text-on-dark-muted: rgba(255, 255, 255, 0.7);
+
+  /* Backgrounds */
+  --color-bg-page:        #EAF0F5;
+  --color-bg-card:        #F2F5FA;
+  --color-bg-white:       #FFFFFF;
+  --color-bg-dark:        #394256;
+  --color-bg-darkest:     #272D3B;
+  --color-bg-shape:       #D7E4EF;   /* subtle background shapes */
+
+  /* Borders */
+  --color-border:         #E1E4EC;
+  --color-border-strong:  #334D6E;
+
+  /* Accent */
+  --color-yellow:         #FFC55C;   /* brand accent — warnings, highlights */
+
+  /* Semantic */
+  --color-suppressed:     #D7E4EF;   /* k<10 suppressed cells */
+  --color-success:        #286F8C;   /* using brand teal — no red/green dependency */
+  --color-warning:        #FFC55C;   /* brand yellow */
+  --color-error:          #8E3A59;   /* dark rose — accessible, not pure red */
+
+  /* Chart palette (colour-blind safe — brand-derived, 6 values) */
+  --chart-1: #334D6E;
+  --chart-2: #4C98C6;
+  --chart-3: #438AE1;
+  --chart-4: #9CC9FF;
+  --chart-5: #FFC55C;
+  --chart-6: #286F8C;
+
+  /* ── Typography tokens ──────────────────────────────────── */
+  --font-family:          'Inter', system-ui, -apple-system, sans-serif;
+  --font-weight-regular:  400;
+  --font-weight-medium:   500;
+  --font-weight-bold:     700;
+  --font-weight-black:    900;
+
+  --font-size-xs:         13px;
+  --font-size-sm:         15px;
+  --font-size-base:       17px;
+  --font-size-lg:         24px;
+  --font-size-xl:         32px;
+  --font-size-display:    60px;
+
+  --line-height-body:     1.5;
+  --line-height-tight:    1.1;
+  --letter-spacing-label: 1px;
+  --letter-spacing-title: -1.25px;
+
+  /* ── Spacing tokens ─────────────────────────────────────── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  24px;
+  --space-6:  32px;
+  --space-7:  48px;
+  --space-8:  64px;
+
+  /* ── Shape tokens ───────────────────────────────────────── */
+  --radius-sm:  4px;
+  --radius-md:  7px;   /* from style guide: border-radius: 7px */
+  --radius-lg:  12px;
+  --radius-full: 9999px;
+
+  /* ── Shadow tokens ──────────────────────────────────────── */
+  --shadow-card: 0 1px 3px rgba(51, 77, 110, 0.08), 0 1px 2px rgba(51, 77, 110, 0.06);
+  --shadow-elevated: 0 4px 12px rgba(51, 77, 110, 0.12);
+}
+
+/* ── Reset & base ───────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-body);
+  background-color: var(--color-bg-page);
+  line-height: var(--line-height-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Typography ─────────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: var(--font-weight-black);
+  color: var(--color-primary);
+  letter-spacing: var(--letter-spacing-title);
+  line-height: var(--line-height-tight);
+}
+
+h1 { font-size: var(--font-size-display); }
+h2 { font-size: var(--font-size-xl); }
+h3 { font-size: var(--font-size-lg); }
+h4 { font-size: var(--font-size-base); font-weight: var(--font-weight-bold); }
+
+a {
+  color: var(--color-primary-bright);
+  text-decoration: underline;
+}
+a:hover { color: var(--color-primary-mid); }
+
+.label-small {
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  letter-spacing: var(--letter-spacing-label);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.metric {
+  font-weight: var(--font-weight-black);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-primary);
+}
+
+/* ── Layout ─────────────────────────────────────────────────── */
+.app-shell {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  grid-template-rows: auto 1fr;
+  min-height: 100vh;
+}
+
+.app-nav {
+  background-color: var(--color-bg-dark);
+  color: var(--color-text-on-dark);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.app-main {
+  padding: var(--space-6);
+  max-width: 1200px;
+}
+
+/* ── Cards ───────────────────────────────────────────────────── */
+.card {
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-card);
+}
+
+.card-metric {
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-card);
+}
+
+.card-metric .metric-value {
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-black);
+  color: var(--color-primary);
+  letter-spacing: var(--letter-spacing-title);
+  line-height: 1;
+  margin: var(--space-2) 0 var(--space-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.card-metric .metric-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  letter-spacing: var(--letter-spacing-label);
+  text-transform: uppercase;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-md);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  border: none;
+  min-height: 44px;       /* WCAG touch target */
+  min-width: 44px;
+  text-decoration: none;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.btn-primary {
+  background-color: var(--color-primary-mid);
+  color: var(--color-text-on-dark);
+}
+.btn-primary:hover { background-color: var(--color-primary); color: #fff; }
+
+.btn-secondary {
+  background-color: transparent;
+  color: var(--color-primary-bright);
+  border: 2px solid var(--color-border);
+}
+.btn-secondary:hover { border-color: var(--color-primary-mid); }
+
+.btn-danger {
+  background-color: var(--color-error);
+  color: #fff;
+}
+
+/* ── Focus indicator (WCAG AA) ──────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--color-primary-bright);
+  outline-offset: 2px;
+}
+
+/* ── Suppression notice ─────────────────────────────────────── */
+.suppressed-cell {
+  background-color: var(--color-suppressed);
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    rgba(51, 77, 110, 0.1) 4px,
+    rgba(51, 77, 110, 0.1) 8px
+  );
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.suppression-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  background-color: #FFF8EC;
+  border: 1px solid var(--color-yellow);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-body);
+  margin-top: var(--space-4);
+}
+
+/* ── Navigation ─────────────────────────────────────────────── */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  color: var(--color-text-on-dark-muted);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  min-height: 44px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.nav-item:hover,
+.nav-item.active {
+  background-color: var(--color-primary-mid);
+  color: var(--color-text-on-dark);
+}
+
+.nav-item.active { font-weight: var(--font-weight-bold); }
+
+/* ── Gradients (from style guide) ───────────────────────────── */
+.gradient-blue {
+  background: radial-gradient(47% 85%, #5C95E3 23%, #29508E 85%);
+}
+.gradient-teal {
+  background: radial-gradient(47% 85%, #438BB3 23%, #286F8C 85%);
+}
+.gradient-dark {
+  background: radial-gradient(47% 85%, #4B5E77 23%, #323864 85%);
+}
+
+/* ── Tags / status badges ────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--letter-spacing-label);
+  text-transform: uppercase;
+}
+
+.badge-blue    { background: var(--color-bg-shape); color: var(--color-primary); }
+.badge-yellow  { background: #FFF8EC; color: #7A5000; border: 1px solid var(--color-yellow); }
+.badge-success { background: #E8F4F2; color: var(--color-teal); }
+
+/* ── Tables ──────────────────────────────────────────────────── */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+th {
+  background-color: var(--color-bg-card);
+  color: var(--color-primary);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-xs);
+  letter-spacing: var(--letter-spacing-label);
+  text-transform: uppercase;
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  border-bottom: 2px solid var(--color-border);
+}
+
+td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-body);
+  font-variant-numeric: tabular-nums;
+}
+
+tr:hover td { background-color: var(--color-bg-card); }
+
+/* ── Print stylesheet (W-04: PDF via browser print) ─────────── */
+@media print {
+  .app-nav,
+  .btn,
+  .no-print { display: none !important; }
+
+  body {
+    background: white;
+    color: black;
+    font-size: 12pt;
+  }
+
+  .card {
+    border: 1px solid #ccc;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+
+  h1, h2, h3 { color: #334D6E; }
+  a { color: #334D6E; text-decoration: none; }
+
+  @page {
+    margin: 2cm;
+    size: A4;
+  }
+}
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  .app-shell { grid-template-columns: 64px 1fr; }
+  .nav-item span { display: none; }
+}
+
+@media (max-width: 767px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+  }
+  .app-nav {
+    flex-direction: row;
+    justify-content: space-around;
+    padding: var(--space-2);
+    order: 2;
+  }
+  .app-main { padding: var(--space-4); order: 1; }
+}
