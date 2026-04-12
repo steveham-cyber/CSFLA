@@ -29,6 +29,7 @@ python-multipart==0.0.12
 
 # Security
 cryptography==43.0.3
+itsdangerous==2.2.0
 
 # Statistics (Report 7 chi-square test)
 scipy==1.14.1
