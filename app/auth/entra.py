@@ -22,7 +22,7 @@ from config import get_settings
 settings = get_settings()
 
 AUTHORITY = f"https://login.microsoftonline.com/{settings.azure_tenant_id}"
-SCOPES = ["openid", "profile", "email"]
+SCOPES = []  # MSAL adds openid/profile/offline_access automatically
 
 
 @lru_cache

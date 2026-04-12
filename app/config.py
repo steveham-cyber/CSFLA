@@ -3,7 +3,7 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # Azure Entra ID
     azure_tenant_id: str
@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     app_env: str = "production"
     secret_key: str
     allowed_origins: str = ""
+
+    # Local dev only — pseudonymisation key (production uses Azure Key Vault)
+    test_pseudonymisation_key: str = ""
 
     # Anthropic — intentionally absent until DPA is in place
     # anthropic_api_key: str = ""

@@ -18,6 +18,7 @@ back the database session. This function does NOT call commit().
 from __future__ import annotations
 import csv
 import io
+import json
 import uuid
 from dataclasses import dataclass, field as dc_field
 
@@ -48,6 +49,8 @@ from pipeline.field_transform import (
 
 #: Source CSV columns that must be present for the pipeline to proceed.
 #: Any missing column triggers a PipelineHalt before any records are processed.
+#: referralSource and howDidYouHearAboutUs are treated as equivalent — at least
+#: one must be present (the transform accepts either).
 REQUIRED_COLUMNS: frozenset[str] = frozenset({
     "id",
     "dateOfBirth",
@@ -58,8 +61,10 @@ REQUIRED_COLUMNS: frozenset[str] = frozenset({
     "csfLeakType",
     "causeOfLeak",
     "memberSince",
-    "referralSource",
 })
+
+#: Referral source column — either name is acceptable.
+_REFERRAL_COLUMNS: frozenset[str] = frozenset({"referralSource", "howDidYouHearAboutUs"})
 
 
 # ── Result types ──────────────────────────────────────────────────────────────
@@ -99,10 +104,34 @@ class PipelineResult:
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 def _parse_pipe_list(value: str | None) -> list[str]:
-    """Split a pipe-separated string into a list. Returns [] for empty/None."""
+    """
+    Parse a multi-value field from the membership CSV.
+
+    Handles two formats:
+      - JSON array:      '["value1","value2"]'  (current export format)
+      - Pipe-separated:  'value1|value2'         (legacy format)
+    """
     if not value or not value.strip():
         return []
+    value = value.strip()
+    if value.startswith("["):
+        try:
+            parsed = json.loads(value)
+            return [v.strip() for v in parsed if isinstance(v, str) and v.strip()]
+        except (json.JSONDecodeError, TypeError):
+            pass
     return [v.strip() for v in value.split("|") if v.strip()]
+
+
+# Mapping from CSV cause values (with acronym suffixes) to canonical DB values.
+# The CSV export appends acronyms to some cause names; normalise before vocab check.
+_CAUSE_NORMALISE: dict[str, str] = {
+    "idiopathicIntracranialHypertensionIih":          "idiopathicIntracranialHypertension",
+    "boneSpurOsteophyte":                             "boneSpur",
+    "ehlersDanlosSyndromeEds":                        "ehlersDanlosSyndrome",
+    "otherHeritableDisorderOfConnectiveTissueHdct":   "otherHeritableDisorderOfConnectiveTissue",
+    "cystTarlovPerineuralMeningealDiverticuliEtc":    "cystTarlovPerineuralMeningeal",
+}
 
 
 def _filter_vocab(
@@ -128,7 +157,10 @@ def _transform_record(row: dict) -> tuple[dict, dict, list[str]]:
     # Multi-value health fields are pipe-separated in the CSV
     raw_statuses = _parse_pipe_list(row.get("memberStatus"))
     raw_leak_types = _parse_pipe_list(row.get("csfLeakType"))
-    raw_causes = _parse_pipe_list(row.get("causeOfLeak"))
+    raw_causes = [
+        _CAUSE_NORMALISE.get(c, c)
+        for c in _parse_pipe_list(row.get("causeOfLeak"))
+    ]
 
     statuses, bad_statuses = _filter_vocab(raw_statuses, MemberStatus.VALID_VALUES)
     leak_types, bad_leak_types = _filter_vocab(raw_leak_types, CSFLeakType.VALID_VALUES)
@@ -207,10 +239,16 @@ async def run_import(
         if not reader.fieldnames:
             raise PipelineHalt("CSV has no headers — cannot proceed.")
 
-        missing_cols = REQUIRED_COLUMNS - frozenset(reader.fieldnames)
+        fieldnames = frozenset(reader.fieldnames)
+        missing_cols = REQUIRED_COLUMNS - fieldnames
         if missing_cols:
             raise PipelineHalt(
                 f"Schema validation failed — missing required columns: {sorted(missing_cols)}"
+            )
+        if not (_REFERRAL_COLUMNS & fieldnames):
+            raise PipelineHalt(
+                "Schema validation failed — missing required columns: "
+                "['howDidYouHearAboutUs' or 'referralSource']"
             )
 
         rows = list(reader)
