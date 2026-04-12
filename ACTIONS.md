@@ -1,6 +1,6 @@
 # Action Tracker
 
-Last updated: 2026-04-11 (v15)
+Last updated: 2026-04-12 (v16)
 
 > This file tracks all open, in-progress, and completed actions across the project. Update it whenever an action is resolved or a new one is identified. Review at the start of each session.
 
@@ -51,5 +51,6 @@ Last updated: 2026-04-11 (v15)
 | C-22 | Lex: DPIA actions 4, 5, 6 resolved | 2026-04-11 | OAuth confirmed as Entra ID (4), hosting confirmed as Azure (5), Article 27 representative obligation confirmed not triggered (6). DPIA updated to v0.2. |
 | C-23 | Bolt: Import pipeline implemented | 2026-04-11 | Full ETL pipeline per Data Architecture Spec v0.3. `pipeline/__init__.py`, `pipeline/key_vault.py`, `ErasureRegister` model added, `imports.py` route wired up. `azure-keyvault-secrets` added to requirements. 10 integration tests in `test_import_pipeline.py`. |
 | C-24 | Bolt: All 8 standard report backends implemented | 2026-04-11 | `reports/__init__.py` updated (added `pct()` helper). `reports/r1_cohort.py` through `reports/r8_referral.py` written. `api/routes/reports.py` rewritten with 8 individual endpoints. Chi-square test in R7 (scipy). NULL referral_source handled separately in R8. k≥10 enforced throughout. |
+| C-27 | Bolt: Push to GitHub and configure branch protection | 2026-04-12 | Repository pushed to steveham-cyber/CSFLA. CI workflow active. Branch protection configured on main: require PR + passing tests, no direct push, no force push. |
 | C-25 | Probe: Integration tests for all 8 report backends | 2026-04-11 | `app/tests/test_reports/conftest.py` with 24-member `standard_cohort` fixture (12 England / 9 Scotland / 2 Germany / 1 France). `test_r1_cohort.py` through `test_r8_referral.py` written. Tests cover structure, suppression (k≥10), filters, and empty-cohort edge cases. Transaction-rollback pattern with `db.flush()`. |
 | C-26 | Sketch + Bolt: Full UI template set | 2026-04-11 | `app/templates/base.html` (app shell, nav, auth-gated admin links). `dashboard.html` (metric cards + Chart.js charts). `reports_list.html` (8 report cards). `report_view.html` (filter panel, per-report renderers, print/PDF). `import.html` (drag-drop upload, 6-step progress, history). `ai_analysis.html` (module-locked notice). `admin.html` (cohort stats + last import). CSS utilities added to `main.css` (metric-value, report-card, table-scroll, data-table, cell-suppressed, filter-input, denominator-note, etc). |
