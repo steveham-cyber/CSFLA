@@ -68,11 +68,11 @@ async def test_r1_sufferer_counts_correct(db_session: AsyncSession, standard_coh
     result = await r1_cohort.run(db_session)
     ss = result["sufferer_summary"]
 
-    # 12 diagnosed + 9 suspected + 2 former = 23 sufferers
-    assert ss["total_sufferers"] == 23
-    # active = diagnosed + suspected = 12 + 9 = 21
-    assert ss["active_sufferers"]["count"] == 21
-    assert ss["diagnosed"]["count"] == 12
+    # 13 diagnosed (12 England + 1 France) + 9 suspected + 2 former = 24 sufferers
+    assert ss["total_sufferers"] == 24
+    # active = diagnosed + suspected = 13 + 9 = 22
+    assert ss["active_sufferers"]["count"] == 22
+    assert ss["diagnosed"]["count"] == 13
     assert ss["suspected"]["count"] == 9
     assert ss["former"]["count"] == 2
 

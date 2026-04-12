@@ -40,8 +40,8 @@ async def test_r2_happy_path_structure(db_session: AsyncSession, standard_cohort
 
 async def test_r2_total_sufferers_correct(db_session: AsyncSession, standard_cohort: dict):
     result = await r2_status.run(db_session)
-    # 12 diagnosed + 9 suspected + 2 former = 23
-    assert result["primary"]["total_sufferers"] == 23
+    # 13 diagnosed (12 England + 1 France) + 9 suspected + 2 former = 24
+    assert result["primary"]["total_sufferers"] == 24
 
 
 async def test_r2_cross_tabs_are_lists(db_session: AsyncSession, standard_cohort: dict):
