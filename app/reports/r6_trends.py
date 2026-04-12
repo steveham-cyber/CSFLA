@@ -53,14 +53,21 @@ async def run(
         base_conditions.append("m.country = :country")
         params["country"] = country
     if leak_type:
+        base_conditions.append("lt.leak_type = :leak_type")
         params["leak_type"] = leak_type
 
     # ── New sufferers per year ────────────────────────────────────────────────
     year_where = where_clause(base_conditions)
+    # Conditionally JOIN csf_leak_types only when the filter requires it
+    year_lt_join = (
+        "JOIN csf_leak_types lt ON m.pseudo_id = lt.pseudo_id"
+        if leak_type else ""
+    )
     year_rows = (await db.execute(text(f"""
         SELECT m.member_since_year AS yr, COUNT(DISTINCT m.pseudo_id) AS cnt
         FROM members m
         JOIN member_statuses ms ON m.pseudo_id = ms.pseudo_id
+        {year_lt_join}
         {year_where}
         GROUP BY m.member_since_year
         ORDER BY m.member_since_year

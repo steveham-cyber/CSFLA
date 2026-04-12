@@ -138,21 +138,18 @@ class TestAdminRole:
         response = await admin_client.get("/api/admin/batches")
         assert response.status_code not in (401, 403)
 
-    async def test_admin_upload_import_returns_501_not_403(self, admin_client) -> None:
+    async def test_admin_upload_import_not_rejected_by_role(self, admin_client) -> None:
         """
-        Admin can call POST /api/imports/ but the pipeline is locked (501).
-        This verifies the role check passes for admin; 501 is the expected
-        response until Cipher + Lex sign off on the pipeline (ACTIONS.md A-07, A-10).
+        Admin can call POST /api/imports/ — the role check must pass (not 401/403).
+        The pipeline is live; any non-auth response code is acceptable here.
         """
         import io
         response = await admin_client.post(
             "/api/imports/",
             files={"file": ("test.csv", io.BytesIO(b"id,country\n1001,England"), "text/csv")},
         )
-        assert response.status_code == 501, (
-            f"Expected 501 (pipeline locked), got {response.status_code}. "
-            "If this is 403, the admin role check is failing. "
-            "If this is 200, the pipeline was unexpectedly unlocked."
+        assert response.status_code not in (401, 403), (
+            f"Expected role check to pass for admin, got {response.status_code}."
         )
 
 
