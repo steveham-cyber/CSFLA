@@ -151,7 +151,7 @@ def _transform_record(row: dict) -> tuple[dict, dict, list[str]]:
     member_data = {
         "age_band": to_age_band(row.get("dateOfBirth")),
         "gender": normalise_gender(row.get("gender")),
-        "country": (row.get("country") or "").strip(),
+        "country": (row.get("country") or "").strip().title(),
         "region": (row.get("countyRegionStateProvince") or "").strip() or None,
         "outward_code": to_outward_code(row.get("postcodeZipCode")),
         "member_since_year": to_membership_year(member_since_raw),

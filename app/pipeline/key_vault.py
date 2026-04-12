@@ -49,6 +49,9 @@ async def get_pseudonymisation_key() -> str:
                 secret = await client.get_secret(settings.azure_key_vault_key_name)
                 return secret.value
     except Exception as exc:
+        # Do not include exc details in the message — Key Vault errors can
+        # expose Azure infrastructure details (vault URL, tenant, resource names).
         raise PipelineHalt(
-            f"Failed to retrieve pseudonymisation key from Key Vault: {exc}"
+            "Unable to retrieve the pseudonymisation key. "
+            "Contact your system administrator."
         ) from exc

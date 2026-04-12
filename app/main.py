@@ -18,7 +18,13 @@ app = FastAPI(
     redoc_url=None,
 )
 
-app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.secret_key,
+    https_only=not settings.is_local,   # Secure flag on in production, off for local HTTP
+    same_site="strict",                  # Block cross-site request forgery vectors
+    max_age=3600,                        # 1-hour session lifetime
+)
 
 # Enforce HTTPS in production
 if not settings.is_local:
