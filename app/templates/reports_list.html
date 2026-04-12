@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Standard Reports — CSFLA Research{% endblock %}
+
+{% block content %}
+<div style="padding: var(--space-6);">
+
+  <div style="margin-bottom: var(--space-6);">
+    <h2 style="margin-bottom: var(--space-1);">Standard Reports</h2>
+    <p style="color: var(--color-text-muted); font-size: var(--font-size-sm);">
+      Pre-defined statistical reports on the sufferer cohort.
+      All outputs are aggregate — no individual records are shown.
+    </p>
+  </div>
+
+  <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--space-4);">
+
+    <!-- R1 -->
+    <div class="card report-card">
+      <div class="report-card-number label-small">Report 1</div>
+      <h4 class="report-card-title">Cohort Overview</h4>
+      <p class="report-card-desc">
+        Population summary, status breakdown, and geographic spread.
+        No filters — always represents the full cohort.
+      </p>
+      <div class="report-card-footer">
+        <a href="/reports/r1" class="btn btn-primary">Run report →</a>
+      </div>
+    </div>
+
+    <!-- R2 -->
+    <div class="card report-card">
+      <div class="report-card-number label-small">Report 2</div>
+      <h4 class="report-card-title">Diagnostic Status Profile</h4>
+      <p class="report-card-desc">
+        Diagnosed vs suspected rates cross-tabulated with demographics.
+      </p>
+      <div class="report-card-footer">
+        <a href="/reports/r2" class="btn btn-primary">Run report →</a>
+      </div>
+    </div>
+
+    <!-- R3 -->
+    <div class="card report-card">
+      <div class="report-card-number label-small">Report 3</div>
+      <h4 class="report-card-title">Leak Type Distribution</h4>
+      <p class="report-card-desc">
+        Spinal vs cranial distribution and demographic patterns for the sufferer cohort.
+      </p>
+      <div class="report-card-footer">
+        <a href="/reports/r3" class="btn btn-primary">Run report →</a>
+      </div>
+    </div>
+
+    <!-- R4 -->
+    <div class="card report-card">
+      <div class="report-card-number label-small">Report 4</div>
+      <h4 class="report-card-title">Cause of Leak Analysis</h4>
+      <p class="report-card-desc">
+        Iatrogenic, connective tissue disorder, spontaneous, and traumatic
+        cause breakdown with cross-tabulations.
+      </p>
+      <div class="report-card-footer">
+        <a href="/reports/r4" class="btn btn-primary">Run report →</a>
+      </div>
+    </div>
+
+    <!-- R5 -->
+    <div class="card report-card">
+      <div class="report-card-number label-small">Report 5</div>
+      <h4 class="report-card-title">Geographic Distribution</h4>
+      <p class="report-card-desc">
+        UK regions and European country breakdown with member density data.
+      </p>
+      <div class="report-card-footer">
+        <a href="/reports/r5" class="btn btn-primary">Run report →</a>
+      </div>
+    </div>
+
+    <!-- R6 -->
+    <div class="card report-card">
+      <div class="report-card-number label-small">Report 6</div>
+      <h4 class="report-card-title">Membership Growth &amp; Trends</h4>
+      <p class="report-card-desc">
+        Cohort growth and composition over time.
+        Reflects charity awareness, not condition prevalence.
+      </p>
+      <div class="report-card-footer">
+        <a href="/reports/r6" class="btn btn-primary">Run report →</a>
+      </div>
+    </div>
+
+    <!-- R7 -->
+    <div class="card report-card">
+      <div class="report-card-number label-small">
+        Report 7
+        <span class="badge badge-yellow" style="margin-left: var(--space-2);">★ High research value</span>
+      </div>
+      <h4 class="report-card-title">Cause × Type Cross-Analysis</h4>
+      <p class="report-card-desc">
+        Relationship between cause of leak and anatomical location.
+        Includes chi-square test of independence.
+      </p>
+      <div class="report-card-footer">
+        <a href="/reports/r7" class="btn btn-primary">Run report →</a>
+      </div>
+    </div>
+
+    <!-- R8 -->
+    <div class="card report-card">
+      <div class="report-card-number label-small">Report 8</div>
+      <h4 class="report-card-title">Referral Source Analysis</h4>
+      <p class="report-card-desc">
+        How members hear about the charity, cross-tabulated with membership year.
+      </p>
+      <div class="report-card-footer">
+        <a href="/reports/r8" class="btn btn-primary">Run report →</a>
+      </div>
+    </div>
+
+  </div><!-- /grid -->
+
+  <p style="margin-top: var(--space-6); font-size: var(--font-size-sm); color: var(--color-text-muted);">
+    Groups with fewer than 10 members are suppressed in all reports to protect individual privacy.
+  </p>
+
+</div>
+{% endblock %}

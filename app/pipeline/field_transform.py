@@ -6,6 +6,7 @@ Each function takes a raw field value from the import CSV and returns
 the research-safe equivalent as defined in Data Architecture Spec v0.2 Section 4.
 """
 
+from __future__ import annotations
 from datetime import date
 
 

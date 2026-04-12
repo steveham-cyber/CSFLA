@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block title %}Data Import — CSFLA Research{% endblock %}
+
+{% block content %}
+<div style="padding: var(--space-6);">
+
+  <div style="margin-bottom: var(--space-6);">
+    <h2 style="margin-bottom: var(--space-1);">Data Import</h2>
+    <p style="color: var(--color-text-muted); font-size: var(--font-size-sm);">Admin only. Upload a member CSV export for pseudonymisation and import.</p>
+  </div>
+
+  <!-- Upload card -->
+  <div class="card" style="margin-bottom: var(--space-6);" id="upload-card">
+
+    <div id="upload-zone"
+         style="
+           border: 2px dashed var(--color-border-strong);
+           border-radius: var(--radius-md);
+           padding: var(--space-8);
+           text-align: center;
+           cursor: pointer;
+           transition: background 0.15s;
+         "
+         role="button"
+         tabindex="0"
+         aria-label="Drop CSV file here or click to browse">
+
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none" aria-hidden="true"
+           style="margin: 0 auto var(--space-3); display:block; color: var(--color-primary-mid);">
+        <path d="M20 6v18m0 0l-6-6m6 6l6-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M6 30v3a2 2 0 002 2h24a2 2 0 002-2v-3" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+
+      <p style="font-weight: var(--font-weight-medium); color: var(--color-primary); margin-bottom: var(--space-1);">
+        Drop CSV file here
+      </p>
+      <p style="font-size: var(--font-size-sm); color: var(--color-text-muted); margin-bottom: var(--space-4);">
+        or click to browse
+      </p>
+      <p class="label-small">Accepted: .csv &nbsp;·&nbsp; Max: 50 MB</p>
+
+      <input type="file" id="csv-input" accept=".csv" style="display:none;" aria-label="Choose CSV file" />
+    </div>
+
+    <!-- Warning notice -->
+    <div style="
+      margin-top: var(--space-4);
+      padding: var(--space-4);
+      background: #FFF8EC;
+      border: 1px solid var(--color-yellow);
+      border-radius: var(--radius-md);
+      font-size: var(--font-size-sm);
+    ">
+      <strong style="color: #7A5000;">⚠ Processing real member data.</strong>
+      The pipeline will pseudonymise all records before storage.
+      Non-European records will be excluded automatically.
+      Cancelled imports roll back completely.
+    </div>
+
+  </div>
+
+  <!-- Progress panel (hidden until upload starts) -->
+  <div class="card" id="progress-panel" style="margin-bottom: var(--space-6); display:none;">
+    <h4 style="margin-bottom: var(--space-4);" id="progress-title">Processing…</h4>
+    <div id="progress-steps" style="display:flex; flex-direction:column; gap: var(--space-2);"></div>
+    <div id="progress-bar-wrapper" style="margin-top: var(--space-4); background: var(--color-bg-card); border-radius: var(--radius-full); height: 8px; display:none;">
+      <div id="progress-bar" style="height: 8px; border-radius: var(--radius-full); background: var(--color-primary-mid); width: 0%; transition: width 0.3s;"></div>
+    </div>
+    <div id="progress-result" style="margin-top: var(--space-4); display:none;"></div>
+  </div>
+
+  <!-- Import history -->
+  <div class="card">
+    <h4 style="margin-bottom: var(--space-4);">Import History</h4>
+    <div id="history-loading" style="color: var(--color-text-muted); font-size: var(--font-size-sm);">Loading…</div>
+    <div id="history-table" style="display:none;">
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Imported</th>
+              <th>Skipped (geo)</th>
+              <th>Rejected</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="history-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="history-empty" style="display:none; color: var(--color-text-muted); font-size: var(--font-size-sm);">
+      No imports yet.
+    </div>
+  </div>
+
+</div>
+
+<script>
+function fmtDate(iso) {
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+function fmtN(n) { return n == null ? '—' : n.toLocaleString('en-GB'); }
+
+// ── Upload zone interaction ───────────────────────────────────────────────────
+
+const zone = document.getElementById('upload-zone');
+const fileInput = document.getElementById('csv-input');
+
+zone.addEventListener('click', () => fileInput.click());
+zone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+
+zone.addEventListener('dragover', e => {
+  e.preventDefault();
+  zone.style.background = 'var(--color-bg-shape)';
+});
+zone.addEventListener('dragleave', () => { zone.style.background = ''; });
+zone.addEventListener('drop', e => {
+  e.preventDefault();
+  zone.style.background = '';
+  const file = e.dataTransfer.files[0];
+  if (file) startUpload(file);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) startUpload(fileInput.files[0]);
+});
+
+// ── Upload logic ──────────────────────────────────────────────────────────────
+
+function setStep(steps, label, state) {
+  // state: 'pending' | 'active' | 'done' | 'error'
+  const icons = { pending: '◌', active: '⟳', done: '✓', error: '✗' };
+  const colors = { pending: 'var(--color-text-muted)', active: 'var(--color-primary-mid)', done: 'var(--color-teal)', error: 'var(--color-error)' };
+  const el = document.getElementById('step-' + label.replace(/\s+/g, '-'));
+  if (el) {
+    el.querySelector('.step-icon').textContent = icons[state];
+    el.querySelector('.step-icon').style.color = colors[state];
+    el.querySelector('.step-label').style.color = state === 'pending' ? 'var(--color-text-muted)' : 'var(--color-text-body)';
+  }
+}
+
+const STEPS = ['File validated', 'Schema verified', 'Geographic filter applied', 'Pseudonymising records', 'Writing to database', 'Finalising batch'];
+
+function showProgress() {
+  const panel = document.getElementById('progress-panel');
+  const stepsEl = document.getElementById('progress-steps');
+  panel.style.display = 'block';
+  stepsEl.innerHTML = STEPS.map(s => `
+    <div id="step-${s.replace(/\s+/g, '-')}" style="display:flex; align-items:center; gap:var(--space-3);">
+      <span class="step-icon" style="width:20px; text-align:center; color:var(--color-text-muted); font-size:var(--font-size-sm);">◌</span>
+      <span class="step-label" style="font-size:var(--font-size-sm); color:var(--color-text-muted);">${s}</span>
+    </div>
+  `).join('');
+  panel.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function startUpload(file) {
+  if (!file.name.endsWith('.csv')) {
+    alert('Only .csv files are accepted.');
+    return;
+  }
+  if (file.size > 50 * 1024 * 1024) {
+    alert('File exceeds the 50 MB limit.');
+    return;
+  }
+
+  document.getElementById('progress-title').textContent = 'Processing: ' + file.name;
+  document.getElementById('progress-result').style.display = 'none';
+  showProgress();
+
+  setStep(STEPS, 'File validated', 'active');
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    setStep(STEPS, 'File validated', 'done');
+    setStep(STEPS, 'Schema verified', 'active');
+
+    const res = await fetch('/api/imports/', { method: 'POST', body: formData });
+    const data = await res.json();
+
+    if (!res.ok) {
+      STEPS.forEach(s => setStep(STEPS, s, 'pending'));
+      setStep(STEPS, 'File validated', 'error');
+      showResult(false, data.detail || 'Import failed.');
+      return;
+    }
+
+    // Mark all steps done
+    STEPS.forEach(s => setStep(STEPS, s, 'done'));
+    showResult(true, data);
+    loadHistory();
+
+  } catch (e) {
+    STEPS.forEach(s => setStep(STEPS, s, 'pending'));
+    showResult(false, 'Network error — import may not have completed.');
+    console.error(e);
+  }
+}
+
+function showResult(success, data) {
+  const el = document.getElementById('progress-result');
+  el.style.display = 'block';
+  if (success) {
+    el.innerHTML = `
+      <div style="padding:var(--space-4); background:var(--color-bg-card); border-radius:var(--radius-md); border-left: 3px solid var(--color-success);">
+        <strong style="color: var(--color-teal);">✓ Import complete</strong>
+        <div style="margin-top:var(--space-3); display:flex; flex-direction:column; gap:var(--space-2); font-size:var(--font-size-sm);">
+          <div><strong>${(data.imported_records||0).toLocaleString('en-GB')}</strong> records imported</div>
+          <div><strong>${(data.skipped_records||0).toLocaleString('en-GB')}</strong> excluded (outside UK/EEA)</div>
+          <div><strong>${(data.rejected_records||0).toLocaleString('en-GB')}</strong> skipped (validation)</div>
+        </div>
+        <p style="margin-top:var(--space-3); font-size:var(--font-size-xs); color:var(--color-text-muted);">
+          Raw file deleted from staging.
+        </p>
+      </div>`;
+  } else {
+    el.innerHTML = `
+      <div style="padding:var(--space-4); background:#FFF0F4; border-radius:var(--radius-md); border-left: 3px solid var(--color-error);">
+        <strong style="color: var(--color-error);">✗ Import failed</strong>
+        <p style="margin-top:var(--space-2); font-size:var(--font-size-sm);">${data}</p>
+      </div>`;
+  }
+}
+
+// ── Import history ────────────────────────────────────────────────────────────
+
+async function loadHistory() {
+  try {
+    const res = await fetch('/api/admin/batches');
+    const loading = document.getElementById('history-loading');
+    const table = document.getElementById('history-table');
+    const empty = document.getElementById('history-empty');
+    const body = document.getElementById('history-body');
+
+    if (!res.ok) { loading.textContent = 'Could not load history.'; return; }
+    const data = await res.json();
+    loading.style.display = 'none';
+
+    if (!data.batches || data.batches.length === 0) {
+      empty.style.display = 'block';
+      return;
+    }
+
+    body.innerHTML = data.batches.map(b => `
+      <tr>
+        <td>${fmtDate(b.imported_at)}</td>
+        <td>${fmtN(b.imported_records)}</td>
+        <td>${fmtN(b.skipped_records)}</td>
+        <td>${fmtN(b.rejected_records)}</td>
+        <td style="font-size:var(--font-size-xs); color:var(--color-text-muted);">${b.notes || ''}</td>
+      </tr>
+    `).join('');
+    table.style.display = 'block';
+  } catch (e) {
+    document.getElementById('history-loading').textContent = 'Could not load history.';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadHistory);
+</script>
+{% endblock %}

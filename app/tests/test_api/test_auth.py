@@ -22,7 +22,11 @@ class TestUnauthenticated:
     """Requests without a valid session must receive HTTP 401."""
 
     async def test_import_endpoint_rejects_unauthenticated(self, anon_client) -> None:
-        response = await anon_client.post("/api/imports/", content=b"test")
+        import io
+        response = await anon_client.post(
+            "/api/imports/",
+            files={"file": ("test.csv", io.BytesIO(b"id,country\n1,England"), "text/csv")},
+        )
         assert response.status_code == 401
 
     async def test_reports_endpoint_rejects_unauthenticated(self, anon_client) -> None:
@@ -30,7 +34,7 @@ class TestUnauthenticated:
         assert response.status_code == 401
 
     async def test_report_detail_rejects_unauthenticated(self, anon_client) -> None:
-        response = await anon_client.get("/api/reports/standard/1")
+        response = await anon_client.get("/api/reports/cohort")
         assert response.status_code == 401
 
     async def test_admin_users_rejects_unauthenticated(self, anon_client) -> None:
@@ -57,7 +61,7 @@ class TestViewerRole:
         assert response.status_code == 200
 
     async def test_viewer_can_access_report_detail(self, viewer_client) -> None:
-        response = await viewer_client.get("/api/reports/standard/1")
+        response = await viewer_client.get("/api/reports/cohort")
         assert response.status_code == 200
 
     async def test_viewer_cannot_trigger_import(self, viewer_client) -> None:
@@ -88,7 +92,7 @@ class TestResearcherRole:
         assert response.status_code == 200
 
     async def test_researcher_can_access_report_detail(self, researcher_client) -> None:
-        response = await researcher_client.get("/api/reports/standard/2")
+        response = await researcher_client.get("/api/reports/cohort")
         assert response.status_code == 200
 
     async def test_researcher_cannot_trigger_import(self, researcher_client) -> None:
@@ -131,7 +135,7 @@ class TestAdminRole:
         assert response.status_code not in (401, 403)
 
     async def test_admin_can_access_import_batches(self, admin_client) -> None:
-        response = await admin_client.get("/api/imports/batches")
+        response = await admin_client.get("/api/admin/batches")
         assert response.status_code not in (401, 403)
 
     async def test_admin_upload_import_returns_501_not_403(self, admin_client) -> None:

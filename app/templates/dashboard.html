@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}Research Dashboard — CSFLA Research{% endblock %}
+
+{% block content %}
+<div style="padding: var(--space-6);">
+
+  <!-- Header row -->
+  <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom: var(--space-6);">
+    <div>
+      <h2 style="margin-bottom: var(--space-1);">Research Dashboard</h2>
+      <p style="color: var(--color-text-muted); font-size: var(--font-size-sm);">
+        Aggregate data — no individual records displayed.
+      </p>
+    </div>
+    <div id="last-import-badge" style="font-size: var(--font-size-sm); color: var(--color-text-muted); padding-top: var(--space-2);">
+      Loading...
+    </div>
+  </div>
+
+  <!-- Metric cards -->
+  <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-6);">
+
+    <div class="card" style="text-align:center;">
+      <div class="label-small" style="margin-bottom: var(--space-2);">Total Cohort</div>
+      <div class="metric-value" id="metric-total">—</div>
+      <div style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-top: var(--space-1);">members</div>
+    </div>
+
+    <div class="card" style="text-align:center;">
+      <div class="label-small" style="margin-bottom: var(--space-2);">Diagnosed</div>
+      <div class="metric-value" id="metric-diagnosed">—</div>
+      <div style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-top: var(--space-1);" id="metric-diagnosed-pct">— of sufferers</div>
+    </div>
+
+    <div class="card" style="text-align:center;">
+      <div class="label-small" style="margin-bottom: var(--space-2);">Suspected</div>
+      <div class="metric-value" id="metric-suspected">—</div>
+      <div style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-top: var(--space-1);" id="metric-suspected-pct">— of sufferers</div>
+    </div>
+
+    <div class="card" style="text-align:center;">
+      <div class="label-small" style="margin-bottom: var(--space-2);">Countries</div>
+      <div class="metric-value" id="metric-countries">—</div>
+      <div style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-top: var(--space-1);">UK + EU</div>
+    </div>
+
+  </div>
+
+  <!-- Charts row -->
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin-bottom: var(--space-4);">
+
+    <!-- Member Status mini-chart -->
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: var(--space-4);">
+        <h4>Member Status</h4>
+        <a href="/reports/r2" style="font-size: var(--font-size-sm);">View full report →</a>
+      </div>
+      <canvas id="chart-status" height="180" aria-label="Member status chart"></canvas>
+      <div id="chart-status-error" style="display:none; color:var(--color-text-muted); font-size:var(--font-size-sm); text-align:center; padding: var(--space-4);">
+        Chart unavailable
+      </div>
+    </div>
+
+    <!-- Leak Type mini-chart -->
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: var(--space-4);">
+        <h4>CSF Leak Type</h4>
+        <a href="/reports/r3" style="font-size: var(--font-size-sm);">View full report →</a>
+      </div>
+      <p style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-bottom: var(--space-3);">Sufferers with known leak type</p>
+      <canvas id="chart-leak-type" height="180" aria-label="Leak type distribution chart"></canvas>
+      <div id="chart-leak-type-error" style="display:none; color:var(--color-text-muted); font-size:var(--font-size-sm); text-align:center; padding: var(--space-4);">
+        Chart unavailable
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Growth chart -->
+  <div class="card" style="margin-bottom: var(--space-4);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: var(--space-4);">
+      <div>
+        <h4>Cohort Growth</h4>
+        <p style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-top: var(--space-1);">
+          New sufferers per membership year.
+          Note: reflects charity awareness, not condition prevalence.
+        </p>
+      </div>
+      <a href="/reports/r6" style="font-size: var(--font-size-sm);">View full report →</a>
+    </div>
+    <canvas id="chart-growth" height="200" aria-label="Cohort growth over time"></canvas>
+    <div id="chart-growth-error" style="display:none; color:var(--color-text-muted); font-size:var(--font-size-sm); text-align:center; padding: var(--space-4);">
+      Chart unavailable
+    </div>
+  </div>
+
+</div>
+
+<script>
+const CHART_COLORS = [
+  getComputedStyle(document.documentElement).getPropertyValue('--chart-1').trim(),
+  getComputedStyle(document.documentElement).getPropertyValue('--chart-2').trim(),
+  getComputedStyle(document.documentElement).getPropertyValue('--chart-3').trim(),
+  getComputedStyle(document.documentElement).getPropertyValue('--chart-4').trim(),
+  getComputedStyle(document.documentElement).getPropertyValue('--chart-5').trim(),
+  getComputedStyle(document.documentElement).getPropertyValue('--chart-6').trim(),
+];
+
+function fmt(n) {
+  if (n == null) return '—';
+  return n.toLocaleString('en-GB');
+}
+
+function pct(n, d) {
+  if (!d) return '—';
+  return (n / d * 100).toFixed(1) + '%';
+}
+
+function renderChart(canvasId, errorId, config) {
+  if (typeof Chart === 'undefined') {
+    document.getElementById(errorId).style.display = 'block';
+    return null;
+  }
+  const canvas = document.getElementById(canvasId);
+  return new Chart(canvas, config);
+}
+
+async function loadDashboard() {
+  try {
+    const cohortRes = await fetch('/api/reports/cohort');
+    if (!cohortRes.ok) throw new Error('Failed to load cohort report');
+    const cohort = await cohortRes.json();
+
+    // Metric cards
+    document.getElementById('metric-total').textContent = fmt(cohort.total_members);
+
+    const ss = cohort.sufferer_summary;
+    document.getElementById('metric-diagnosed').textContent = fmt(ss.diagnosed.count);
+    document.getElementById('metric-diagnosed-pct').textContent =
+      pct(ss.diagnosed.count, ss.total_sufferers) + ' of sufferers';
+    document.getElementById('metric-suspected').textContent = fmt(ss.suspected.count);
+    document.getElementById('metric-suspected-pct').textContent =
+      pct(ss.suspected.count, ss.total_sufferers) + ' of sufferers';
+
+    const countryCount = cohort.country_breakdown.shown.length;
+    document.getElementById('metric-countries').textContent = fmt(countryCount);
+
+    // Status chart
+    const statusBreakdown = cohort.status_breakdown || [];
+    const statusLabels = {
+      csfLeakSuffererDiagnosed: 'Diagnosed',
+      csfLeakSuffererSuspected: 'Suspected',
+      formerCsfLeakSufferer: 'Former',
+      familyFriendOfSufferer: 'Family / Friend',
+      medicalProfessional: 'Medical Professional',
+      other: 'Other',
+    };
+    renderChart('chart-status', 'chart-status-error', {
+      type: 'bar',
+      data: {
+        labels: statusBreakdown.map(s => statusLabels[s.status] || s.status),
+        datasets: [{
+          data: statusBreakdown.map(s => s.count),
+          backgroundColor: CHART_COLORS.slice(0, statusBreakdown.length),
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } },
+        responsive: true,
+        maintainAspectRatio: false,
+      },
+    });
+  } catch (e) {
+    console.error('Dashboard load error:', e);
+    document.getElementById('chart-status-error').style.display = 'block';
+  }
+
+  try {
+    const ltRes = await fetch('/api/reports/leak-type');
+    if (!ltRes.ok) throw new Error('Failed to load leak type report');
+    const lt = await ltRes.json();
+
+    const ltLabels = { spinal: 'Spinal', cranial: 'Cranial', spinalAndCranial: 'Spinal & Cranial', unknown: 'Unknown' };
+    const breakdown = lt.primary.breakdown || [];
+    renderChart('chart-leak-type', 'chart-leak-type-error', {
+      type: 'bar',
+      data: {
+        labels: breakdown.map(r => ltLabels[r.leak_type] || r.leak_type),
+        datasets: [{
+          data: breakdown.map(r => r.count),
+          backgroundColor: CHART_COLORS.slice(0, breakdown.length),
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } },
+        responsive: true,
+        maintainAspectRatio: false,
+      },
+    });
+  } catch (e) {
+    console.error('Leak type chart error:', e);
+    document.getElementById('chart-leak-type-error').style.display = 'block';
+  }
+
+  try {
+    const trendRes = await fetch('/api/reports/trends');
+    if (!trendRes.ok) throw new Error('Failed to load trends report');
+    const trends = await trendRes.json();
+
+    if (trends.trend_charts_available && trends.by_year.length > 0) {
+      const years = trends.by_year.map(r => r.year);
+      const counts = trends.by_year.map(r => r.new_sufferers);
+      renderChart('chart-growth', 'chart-growth-error', {
+        type: 'bar',
+        data: {
+          labels: years,
+          datasets: [{
+            label: 'New sufferers',
+            data: counts,
+            backgroundColor: CHART_COLORS[0],
+            borderRadius: 4,
+          }],
+        },
+        options: {
+          plugins: { legend: { display: false } },
+          scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0 } } },
+          responsive: true,
+          maintainAspectRatio: false,
+        },
+      });
+    } else {
+      document.getElementById('chart-growth-error').style.display = 'block';
+      document.getElementById('chart-growth-error').textContent =
+        trends.trend_charts_note || 'Insufficient data for trend chart.';
+    }
+  } catch (e) {
+    console.error('Growth chart error:', e);
+    document.getElementById('chart-growth-error').style.display = 'block';
+  }
+
+  // Last import badge
+  try {
+    const adminRes = await fetch('/api/admin/batches?limit=1');
+    if (adminRes.ok) {
+      const adminData = await adminRes.json();
+      const el = document.getElementById('last-import-badge');
+      if (adminData.batches && adminData.batches.length > 0) {
+        const lastDate = new Date(adminData.batches[0].imported_at);
+        const daysSince = Math.floor((Date.now() - lastDate) / 86400000);
+        const formatted = lastDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        el.textContent = 'Last import: ' + formatted;
+        if (daysSince > 90) {
+          el.style.color = 'var(--color-warning)';
+          el.textContent += ' ⚠ (>90 days ago)';
+        }
+      } else {
+        el.textContent = 'No imports yet';
+      }
+    }
+  } catch (e) {
+    document.getElementById('last-import-badge').textContent = '';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadDashboard);
+</script>
+{% endblock %}

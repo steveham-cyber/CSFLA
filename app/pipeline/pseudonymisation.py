@@ -9,6 +9,8 @@ leaves the vault. In tests, TEST_PSEUDONYMISATION_KEY provides a fixed test key
 that is never used in production.
 """
 
+from __future__ import annotations
+
 import base64
 import hmac
 import hashlib

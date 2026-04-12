@@ -1,7 +1,7 @@
 # Data Protection Impact Assessment (DPIA)
 ## CSF Leak Association — Research Data Application
 
-**Document status:** Draft v0.1 — for review and approval  
+**Document status:** Draft v0.2 — for owner and Board approval. Actions 4, 5, 6 resolved.  
 **Prepared by:** Lex (Compliance Specialist)  
 **Date drafted:** 2026-04-11  
 **Owner:** CSF Leak Association (Charity No. SC046319)  
@@ -63,7 +63,6 @@ Members resident outside the UK and EEA are **excluded from this system entirely
 | Geographic location | Country + region + outward postcode only. Full address never stored. |
 | Membership dates | Year only. Full timestamps never stored. |
 | How member heard about the charity | Structured category only. Free text never stored. |
-| Volunteer status | Yes/no flag |
 
 ### 2.4 Data Fields Excluded from the Research System
 
@@ -252,9 +251,9 @@ EU prior consultation is similarly **not required** on the same basis. If the sy
 | 1 | Complete and approve this DPIA | Data protection lead / Board | Open |
 | 2 | Update Privacy Policy to v1.1 referencing this system | Lex | Pending DPIA approval |
 | 3 | Obtain Data Processing Agreement with Anthropic (Claude API) | Data protection lead | Open |
-| 4 | Confirm identity provider for OAuth (Entra ID / other) | IT lead | Open |
-| 5 | Confirm internal hosting environment details for infrastructure security review | IT lead | Open |
-| 6 | Confirm no EU representative obligation under EU GDPR Article 27 | Lex | Open — see note below |
+| 4 | Confirm identity provider for OAuth (Entra ID / other) | IT lead | **Closed** — Microsoft Entra ID (M365) confirmed. |
+| 5 | Confirm internal hosting environment details for infrastructure security review | IT lead | **Closed** — Azure confirmed: App Service, PostgreSQL Flexible Server, Key Vault Premium, Entra ID. |
+| 6 | Confirm no EU representative obligation under EU GDPR Article 27 | Lex | **Closed** — confirmed not required. Processing does not trigger Article 27 obligation. |
 
 > **Note on EU GDPR Article 27 (EU representative):** Article 27 requires non-EU controllers processing EU residents' data to appoint an EU representative, unless the processing is occasional or poses low risk to individuals. Given that this processing is systematic (regular imports) and involves special category data, the charity should take legal advice on whether an EU representative appointment is required. This is a relatively low administrative burden if needed.
 

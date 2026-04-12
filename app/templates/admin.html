@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Administration — CSFLA Research{% endblock %}
+
+{% block content %}
+<div style="padding: var(--space-6);">
+
+  <div style="margin-bottom: var(--space-6);">
+    <h2 style="margin-bottom: var(--space-1);">Administration</h2>
+    <p style="color: var(--color-text-muted); font-size: var(--font-size-sm);">Admin-only tools.</p>
+  </div>
+
+  <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-4);">
+
+    <!-- Import -->
+    <div class="card">
+      <h4 style="margin-bottom: var(--space-2);">Data Import</h4>
+      <p style="font-size: var(--font-size-sm); color: var(--color-text-muted); margin-bottom: var(--space-4);">
+        Upload a CSV member export for pseudonymisation and import into the research database.
+      </p>
+      <a href="/import" class="btn btn-primary">Go to Import →</a>
+    </div>
+
+    <!-- Cohort stats -->
+    <div class="card">
+      <h4 style="margin-bottom: var(--space-2);">Cohort Size</h4>
+      <div class="metric-value" id="admin-total" style="font-size: var(--font-size-xl);">—</div>
+      <p style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-top: var(--space-1);">total members in research database</p>
+      <div style="margin-top: var(--space-2);">
+        <span class="metric-value" style="font-size: var(--font-size-lg);" id="admin-sufferers">—</span>
+        <span style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-left: var(--space-2);">sufferers</span>
+      </div>
+    </div>
+
+    <!-- Last import -->
+    <div class="card">
+      <h4 style="margin-bottom: var(--space-2);">Last Import</h4>
+      <div id="admin-last-import" style="color: var(--color-text-muted); font-size: var(--font-size-sm);">Loading…</div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+async function loadAdminStats() {
+  try {
+    const cohortRes = await fetch('/api/reports/cohort');
+    if (cohortRes.ok) {
+      const data = await cohortRes.json();
+      document.getElementById('admin-total').textContent = (data.total_members || 0).toLocaleString('en-GB');
+      document.getElementById('admin-sufferers').textContent = (data.sufferer_summary?.total_sufferers || 0).toLocaleString('en-GB');
+    }
+  } catch (e) {}
+
+  try {
+    const batchRes = await fetch('/api/admin/batches?limit=1');
+    const el = document.getElementById('admin-last-import');
+    if (batchRes.ok) {
+      const data = await batchRes.json();
+      if (data.batches && data.batches.length > 0) {
+        const b = data.batches[0];
+        const d = new Date(b.imported_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        el.innerHTML = `<strong>${d}</strong><br>
+          <span style="font-size:var(--font-size-xs);">${(b.imported_records||0).toLocaleString('en-GB')} imported</span>`;
+      } else {
+        el.textContent = 'No imports yet.';
+      }
+    }
+  } catch (e) {}
+}
+document.addEventListener('DOMContentLoaded', loadAdminStats);
+</script>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}AI Analysis — CSFLA Research{% endblock %}
+
+{% block content %}
+<div style="padding: var(--space-6);">
+
+  <div style="margin-bottom: var(--space-6);">
+    <h2 style="margin-bottom: var(--space-1);">AI Analysis</h2>
+    <p style="color: var(--color-text-muted); font-size: var(--font-size-sm);">
+      AI-assisted data analysis via the Claude API.
+    </p>
+  </div>
+
+  <div class="card" style="
+    border-left: 4px solid var(--color-yellow);
+    background: #FFF8EC;
+    max-width: 600px;
+  ">
+    <div style="display:flex; align-items:flex-start; gap: var(--space-4);">
+      <div style="font-size: 24px; line-height:1; flex-shrink:0;">⚠</div>
+      <div>
+        <h4 style="margin-bottom: var(--space-2); color: #7A5000;">Module Locked</h4>
+        <p style="font-size: var(--font-size-sm); color: #7A5000;">
+          The AI analysis module is locked pending completion of action A-02:
+          <strong>Data Processing Agreement with Anthropic</strong>.
+        </p>
+        <p style="font-size: var(--font-size-sm); color: #7A5000; margin-top: var(--space-2);">
+          This module will be available once the DPA is signed and the Claude API
+          integration is approved by the data protection lead.
+        </p>
+        <p style="font-size: var(--font-size-xs); color: rgba(122,80,0,0.7); margin-top: var(--space-3);">
+          Reference: DPIA v0.2 — Action A-02 · See ACTIONS.md
+        </p>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

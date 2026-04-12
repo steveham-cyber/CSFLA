@@ -1,0 +1,4 @@
+# Chart.js must be copied here by the deployment process.
+# Download from: https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.min.js
+# Save as: app/static/js/chart.min.js
+# Do NOT load Chart.js from a CDN — that would violate the Content-Security-Policy.

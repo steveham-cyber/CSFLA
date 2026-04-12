@@ -1,16 +1,21 @@
 """
 Data import endpoint — admin only.
-Pipeline implementation locked pending Cipher + Lex sign-off (ACTIONS.md A-07, A-10).
+
+Accepts CSV uploads and runs the full ETL pipeline per
+Data Architecture Spec v0.3 Section 7.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import require_admin
 from auth.entra import CurrentUser
+from db.connection import get_db
+from pipeline import PipelineHalt, run_import
 
 router = APIRouter()
 
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50MB
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024   # 50 MB
 ALLOWED_CONTENT_TYPES = {"text/csv", "application/vnd.ms-excel"}
 
 
@@ -18,30 +23,52 @@ ALLOWED_CONTENT_TYPES = {"text/csv", "application/vnd.ms-excel"}
 async def upload_import(
     file: UploadFile,
     user: CurrentUser = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
 ):
-    # File type validation
+    # Content-type check
     if file.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only CSV files are accepted.",
         )
 
-    # File size validation
+    # Size check — read one byte past the limit to detect oversize files
     contents = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(contents) > MAX_UPLOAD_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="File exceeds the 50MB limit.",
+            detail="File exceeds the 50 MB limit.",
         )
 
-    # Pipeline is not yet implemented — locked pending sign-off
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Import pipeline pending compliance sign-off.",
-    )
+    filename = file.filename or "upload.csv"
+
+    try:
+        result = await run_import(
+            csv_bytes=contents,
+            source_filename=filename,
+            imported_by=user.id,
+            db=db,
+        )
+    except PipelineHalt as exc:
+        # Hard-stop conditions: schema change, PII detected, key unavailable.
+        # No data has been written — session rolls back when the dependency exits.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        )
+
+    await db.commit()
+
+    return {
+        "batch_id": str(result.batch_id),
+        "total_records": result.total_records,
+        "imported_records": result.imported_records,
+        "skipped_records": result.skipped_records,
+        "rejected_records": result.rejected_records,
+        "rejection_log": [
+            {"record_id": e.record_id, "reason": e.reason, "detail": e.detail}
+            for e in result.rejection_log
+        ],
+    }
 
 
-@router.get("/batches")
-async def list_batches(user: CurrentUser = Depends(require_admin)):
-    # Stub — returns import batch history
-    return {"batches": []}

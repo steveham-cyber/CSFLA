@@ -10,6 +10,7 @@ Any changes to this allowlist require review against:
   - ICO registration scope
   - Data Architecture Spec v0.2 Section 3
 """
+from __future__ import annotations
 
 # All accepted UK country name variants — case-insensitive match applied at runtime.
 _UK_VARIANTS: frozenset[str] = frozenset({

@@ -122,3 +122,22 @@ class CauseOfLeak(Base):
         "cystTarlovPerineuralMeningeal", "trauma", "other", "unknown",
         "preferNotToSay",
     })
+
+
+class ErasureRegister(Base):
+    """
+    Records pseudo_ids that have been erased under GDPR Article 17.
+
+    The import pipeline checks this table before any upsert. If a pseudo_id is
+    present here the record is skipped and logged as 'subject_erased'. This
+    prevents erased members from re-entering the research DB on future imports.
+
+    See Data Architecture Spec v0.3 Section 6 and 8.
+    """
+
+    __tablename__ = "erasure_register"
+
+    pseudo_id = Column(Text, primary_key=True)
+    erased_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    erased_by = Column(Text, nullable=False)          # Entra ID object ID of admin who actioned erasure
+    erasure_reason = Column(Text)                     # Optional: e.g. 'Article 17 request', 'deceased'

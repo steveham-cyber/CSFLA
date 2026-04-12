@@ -46,6 +46,10 @@ TEST_PSEUDONYMISATION_KEY: str = os.environ.get(
     "test-hmac-key-csfleak-never-use-in-production-aabbccdd",
 )
 
+# Ensure key_vault.get_pseudonymisation_key() finds the key in dev mode.
+# setdefault does nothing if the var is already set (e.g. from CI secrets).
+os.environ.setdefault("TEST_PSEUDONYMISATION_KEY", TEST_PSEUDONYMISATION_KEY)
+
 
 # ── Test database URL ─────────────────────────────────────────────────────────
 

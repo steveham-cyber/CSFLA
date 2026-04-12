@@ -1,0 +1,534 @@
+{% extends "base.html" %}
+
+{% block title %}Report {{ report_id[1:] }} — CSFLA Research{% endblock %}
+
+{% block content %}
+<div style="padding: var(--space-6);" id="report-container" data-report-id="{{ report_id }}">
+
+  <!-- Back link + title -->
+  <div style="margin-bottom: var(--space-5);">
+    <a href="/reports" style="font-size: var(--font-size-sm); color: var(--color-text-muted); text-decoration: none;">
+      ← Reports
+    </a>
+  </div>
+
+  <div style="margin-bottom: var(--space-5);">
+    <h2 id="report-title" style="margin-bottom: var(--space-1);">Loading…</h2>
+    <p style="font-size: var(--font-size-sm); color: var(--color-text-muted);" id="report-meta"></p>
+  </div>
+
+  <!-- Filter panel -->
+  <div id="filter-panel" class="card" style="margin-bottom: var(--space-5); display:none;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: var(--space-3);">
+      <h4>Filters</h4>
+      <button id="reset-filters" class="btn btn-ghost" type="button">Reset filters</button>
+    </div>
+    <div id="filter-controls" style="display:flex; flex-wrap:wrap; gap:var(--space-3);"></div>
+  </div>
+
+  <!-- Report content area -->
+  <div id="report-content">
+    <div class="loading-state" style="text-align:center; padding: var(--space-8); color: var(--color-text-muted);">
+      Loading report data…
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Report metadata ────────────────────────────────────────────────────────
+
+const REPORT_PATHS = {
+  r1: { path: 'cohort',     filters: [] },
+  r2: { path: 'status',     filters: ['country','gender','age_band','year_from','year_to'] },
+  r3: { path: 'leak-type',  filters: ['diagnostic_status','country','gender','age_band','year_from','year_to'] },
+  r4: { path: 'cause',      filters: ['cause_group','individual_cause','leak_type','diagnostic_status','country','gender','age_band','year_from','year_to'] },
+  r5: { path: 'geography',  filters: ['country_group','diagnostic_status','leak_type','cause_group'] },
+  r6: { path: 'trends',     filters: ['diagnostic_status','country','leak_type','cause_group'] },
+  r7: { path: 'cause-type', filters: ['diagnostic_status','gender','age_band','country','year_from','year_to'] },
+  r8: { path: 'referral',   filters: ['year_from','year_to','country'] },
+};
+
+const REPORT_TITLES = {
+  r1: 'Cohort Overview',
+  r2: 'Diagnostic Status Profile',
+  r3: 'CSF Leak Type Distribution',
+  r4: 'Cause of Leak Analysis',
+  r5: 'Geographic Distribution',
+  r6: 'Membership Growth & Trends',
+  r7: 'Cause × Type Cross-Analysis',
+  r8: 'Referral Source Analysis',
+};
+
+const FILTER_LABELS = {
+  country: 'Country', gender: 'Gender', age_band: 'Age band',
+  year_from: 'Year from', year_to: 'Year to', diagnostic_status: 'Status',
+  cause_group: 'Cause group', individual_cause: 'Individual cause',
+  leak_type: 'Leak type', country_group: 'Country group',
+};
+
+const CHART_COLORS = [
+  getComputedStyle(document.documentElement).getPropertyValue('--chart-1').trim(),
+  getComputedStyle(document.documentElement).getPropertyValue('--chart-2').trim(),
+  getComputedStyle(document.documentElement).getPropertyValue('--chart-3').trim(),
+  getComputedStyle(document.documentElement).getPropertyValue('--chart-4').trim(),
+  getComputedStyle(document.documentElement).getPropertyValue('--chart-5').trim(),
+  getComputedStyle(document.documentElement).getPropertyValue('--chart-6').trim(),
+];
+
+const reportId = document.getElementById('report-container').dataset.reportId;
+const reportMeta = REPORT_PATHS[reportId];
+let activeChart = null;
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function fmt(n) {
+  if (n == null) return '—';
+  return n.toLocaleString('en-GB');
+}
+
+function fmtPct(p) {
+  if (p == null) return '—';
+  return p.toFixed(1) + '%';
+}
+
+function suppCell(cell) {
+  if (!cell || cell.suppressed) {
+    return `<td class="cell-suppressed" title="Fewer than 10 members — suppressed">—</td>`;
+  }
+  return `<td>${fmt(cell.count)}</td>`;
+}
+
+// ── Filter controls ────────────────────────────────────────────────────────
+
+function buildFilters() {
+  if (!reportMeta.filters.length) return;
+  const panel = document.getElementById('filter-panel');
+  const controls = document.getElementById('filter-controls');
+  panel.style.display = 'block';
+
+  reportMeta.filters.forEach(key => {
+    const label = FILTER_LABELS[key] || key;
+    const isYear = key.startsWith('year_');
+    const wrapper = document.createElement('div');
+    wrapper.style.display = 'flex';
+    wrapper.style.flexDirection = 'column';
+    wrapper.style.gap = '4px';
+    wrapper.style.minWidth = isYear ? '100px' : '140px';
+
+    const labelEl = document.createElement('label');
+    labelEl.className = 'label-small';
+    labelEl.setAttribute('for', 'filter-' + key);
+    labelEl.textContent = label;
+
+    if (isYear) {
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.id = 'filter-' + key;
+      input.name = key;
+      input.min = 2000;
+      input.max = 2100;
+      input.placeholder = label;
+      input.className = 'filter-input';
+      input.addEventListener('change', () => loadReport());
+      wrapper.appendChild(labelEl);
+      wrapper.appendChild(input);
+    } else {
+      const select = document.createElement('select');
+      select.id = 'filter-' + key;
+      select.name = key;
+      select.className = 'filter-input';
+      select.innerHTML = `<option value="">All</option>`;
+      select.addEventListener('change', () => loadReport());
+      wrapper.appendChild(labelEl);
+      wrapper.appendChild(select);
+      // Populate options lazily after first data load
+    }
+
+    controls.appendChild(wrapper);
+  });
+
+  document.getElementById('reset-filters').addEventListener('click', () => {
+    document.querySelectorAll('.filter-input').forEach(el => {
+      if (el.tagName === 'SELECT') el.value = '';
+      else el.value = '';
+    });
+    loadReport();
+  });
+}
+
+function getFilterParams() {
+  const params = new URLSearchParams();
+  document.querySelectorAll('.filter-input').forEach(el => {
+    if (el.value) params.set(el.name, el.value);
+  });
+  return params;
+}
+
+// ── Report renderers ───────────────────────────────────────────────────────
+
+function renderError(msg) {
+  document.getElementById('report-content').innerHTML =
+    `<div class="card" style="color:var(--color-error); padding:var(--space-6);">${msg}</div>`;
+}
+
+function renderBarChart(canvasId, labels, values, label) {
+  if (typeof Chart === 'undefined') return;
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+  if (activeChart) { activeChart.destroy(); activeChart = null; }
+  activeChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label, data: values, backgroundColor: CHART_COLORS.slice(0, labels.length), borderRadius: 4 }],
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } },
+      responsive: true,
+      maintainAspectRatio: false,
+    },
+  });
+}
+
+function renderCrossTab(rows, rowKey, colKeys, colLabels) {
+  if (!rows || rows.length === 0) return '<p style="color:var(--color-text-muted);">No data.</p>';
+  let html = `<div class="table-scroll"><table class="data-table"><thead><tr>
+    <th>${rowKey}</th>
+    ${colKeys.map(k => `<th>${colLabels[k] || k}</th>`).join('')}
+    <th>Total</th>
+  </tr></thead><tbody>`;
+  for (const row of rows) {
+    html += `<tr><td>${row.value ?? row[rowKey] ?? '—'}</td>
+      ${colKeys.map(k => suppCell(row[k])).join('')}
+      ${suppCell(row.total)}
+    </tr>`;
+  }
+  html += '</tbody></table></div>';
+  return html;
+}
+
+// ── R1: Cohort Overview ────────────────────────────────────────────────────
+
+function renderR1(data) {
+  const ss = data.sufferer_summary;
+  const dc = data.data_completeness;
+  return `
+    <div class="card" style="margin-bottom: var(--space-4);">
+      <h4 style="margin-bottom: var(--space-4);">Cohort Summary</h4>
+      <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-4);">
+        <div><div class="label-small">Total Members</div><div class="metric-value">${fmt(data.total_members)}</div></div>
+        <div><div class="label-small">Total Sufferers</div><div class="metric-value">${fmt(ss.total_sufferers)}</div></div>
+        <div><div class="label-small">Diagnosed</div><div class="metric-value">${fmt(ss.diagnosed.count)}</div><div style="font-size:var(--font-size-xs);color:var(--color-text-muted);">${fmtPct(ss.diagnosed.pct_of_sufferers)} of sufferers</div></div>
+        <div><div class="label-small">Suspected</div><div class="metric-value">${fmt(ss.suspected.count)}</div></div>
+        <div><div class="label-small">Former</div><div class="metric-value">${fmt(ss.former.count)}</div></div>
+        <div><div class="label-small">Supporters</div><div class="metric-value">${fmt(data.supporter_summary.total_supporters)}</div></div>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);">
+      <div class="card">
+        <h4 style="margin-bottom: var(--space-4);">Country Breakdown</h4>
+        <p class="denominator-note">${data.country_breakdown.suppression_note}</p>
+        <div class="table-scroll"><table class="data-table">
+          <thead><tr><th>Country</th><th>Members</th><th>% of total</th></tr></thead>
+          <tbody>
+            ${data.country_breakdown.shown.map(r => `<tr><td>${r.country}</td><td>${fmt(r.count)}</td><td>${fmtPct(r.pct_of_total)}</td></tr>`).join('')}
+          </tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <h4 style="margin-bottom: var(--space-4);">Data Completeness</h4>
+        <div class="table-scroll"><table class="data-table">
+          <thead><tr><th>Field</th><th>Members</th><th>%</th></tr></thead>
+          <tbody>
+            <tr><td>Gender</td><td>${fmt(dc.gender.count)}</td><td>${fmtPct(dc.gender.pct)}</td></tr>
+            <tr><td>Age band</td><td>${fmt(dc.age_band.count)}</td><td>${fmtPct(dc.age_band.pct)}</td></tr>
+            <tr><td>Leak type</td><td>${fmt(dc.leak_type.count)}</td><td>${fmtPct(dc.leak_type.pct)}</td></tr>
+            <tr><td>Cause of leak</td><td>${fmt(dc.cause_of_leak.count)}</td><td>${fmtPct(dc.cause_of_leak.pct)}</td></tr>
+          </tbody>
+        </table></div>
+        <p class="denominator-note" style="margin-top: var(--space-3);">${dc.denominator_note}</p>
+      </div>
+    </div>`;
+}
+
+// ── Generic cross-tab renderer ─────────────────────────────────────────────
+
+function renderGeneric(data) {
+  let html = '';
+
+  // Primary breakdown (if present)
+  if (data.primary) {
+    const p = data.primary;
+    const bd = p.breakdown || [];
+    if (bd.length > 0) {
+      const firstKey = Object.keys(bd[0]).find(k => !['pct_of_sufferers','pct_of_total','pct_of_sufferers_with_type','pct_of_members_with_source'].includes(k));
+      const countKey = 'count';
+      html += `<div class="card" style="margin-bottom:var(--space-4);">
+        <h4 style="margin-bottom:var(--space-3);">Primary Breakdown</h4>
+        ${p.denominator_note ? `<p class="denominator-note">${p.denominator_note}</p>` : ''}
+        ${p.null_note ? `<p class="denominator-note" style="margin-top:var(--space-2);">${p.null_note}</p>` : ''}
+        <canvas id="primary-chart" height="220" style="margin: var(--space-3) 0;"></canvas>
+        <div class="table-scroll"><table class="data-table">
+          <thead><tr>
+            <th>Value</th>
+            <th>Count</th>
+            <th>%</th>
+          </tr></thead>
+          <tbody>
+            ${bd.map(r => {
+              const label = r.status || r.leak_type || r.source || r.cause_group || r[firstKey] || '—';
+              const pctVal = r.pct_of_sufferers ?? r.pct_of_sufferers_with_type ?? r.pct_of_members_with_source ?? r.pct_of_total ?? null;
+              return `<tr><td>${label}</td><td>${fmt(r[countKey])}</td><td>${fmtPct(pctVal)}</td></tr>`;
+            }).join('')}
+          </tbody>
+        </table></div>
+      </div>`;
+      // Defer chart render
+      setTimeout(() => {
+        const labels = bd.map(r => r.status || r.leak_type || r.source || r[firstKey] || '—');
+        const values = bd.map(r => r[countKey]);
+        renderBarChart('primary-chart', labels, values, 'Count');
+      }, 50);
+    }
+  }
+
+  // Cross-tab sections
+  const xtabs = [
+    { key: 'by_status', label: 'By Diagnostic Status' },
+    { key: 'by_gender', label: 'By Gender' },
+    { key: 'by_age_band', label: 'By Age Band' },
+    { key: 'by_country', label: 'By Country' },
+    { key: 'by_region', label: 'By Region' },
+    { key: 'by_year', label: 'By Membership Year' },
+    { key: 'by_year', label: 'By Year' },
+  ];
+  const seen = new Set();
+  for (const { key, label } of xtabs) {
+    if (seen.has(key) || !data[key] || data[key].length === 0) continue;
+    seen.add(key);
+    const rows = data[key];
+    const colKeys = Object.keys(rows[0]).filter(k => !['value','total','suppressed'].includes(k) && typeof rows[0][k] === 'object');
+    const colLabels = {};
+    html += `<div class="card" style="margin-bottom:var(--space-4);">
+      <h4 style="margin-bottom:var(--space-3);">${label}</h4>
+      <p class="denominator-note">Groups below 10 members are suppressed.</p>
+      ${renderCrossTab(rows, 'value', colKeys, colLabels)}
+    </div>`;
+  }
+
+  return html || '<div class="card"><p style="color:var(--color-text-muted);">No data available for the selected filters.</p></div>';
+}
+
+// ── R7: Cause × Type matrix ────────────────────────────────────────────────
+
+function renderR7(data) {
+  const ltCols = data.leak_type_columns || [];
+  const ltLabels = { spinal: 'Spinal', cranial: 'Cranial', spinalAndCranial: 'Spinal &amp; Cranial', unknown: 'Unknown' };
+
+  let matrixHtml = `<div class="table-scroll"><table class="data-table"><thead>
+    <tr>
+      <th>Cause</th>
+      <th>Total</th>
+      ${ltCols.map(lt => `<th>${ltLabels[lt] || lt}</th>`).join('')}
+      <th>Row total</th>
+    </tr></thead><tbody>`;
+
+  for (const row of (data.matrix || [])) {
+    const isGroup = row.type === 'group';
+    const rowStyle = isGroup ? ' class="matrix-group-row"' : ' style="font-size:var(--font-size-sm);"';
+    const indent = isGroup ? '' : '&nbsp;&nbsp;&nbsp;&nbsp;';
+    matrixHtml += `<tr${rowStyle}>
+      <td>${indent}${row.label}</td>
+      ${suppCell(row.total)}
+      ${ltCols.map(lt => suppCell(row[lt])).join('')}
+      ${suppCell(row.row_total)}
+    </tr>`;
+  }
+  matrixHtml += '</tbody></table></div>';
+
+  const chi = data.chi_square_test;
+  let chiHtml = '';
+  if (chi) {
+    if (chi.valid) {
+      chiHtml = `<div class="card" style="margin-top:var(--space-4);">
+        <h4 style="margin-bottom:var(--space-3);">Chi-Square Test of Independence</h4>
+        <div style="display:flex; gap:var(--space-6); flex-wrap:wrap;">
+          <div><div class="label-small">χ²</div><div class="metric-value" style="font-size:var(--font-size-xl);">${chi.chi2}</div></div>
+          <div><div class="label-small">p-value</div><div class="metric-value" style="font-size:var(--font-size-xl);">${chi.p_value}</div></div>
+          <div><div class="label-small">Degrees of freedom</div><div class="metric-value" style="font-size:var(--font-size-xl);">${chi.degrees_of_freedom}</div></div>
+        </div>
+        <p class="denominator-note" style="margin-top:var(--space-3);">${chi.note}</p>
+      </div>`;
+    } else {
+      chiHtml = `<div class="card" style="margin-top:var(--space-4); background:var(--color-bg-card);">
+        <h4>Chi-Square Test</h4>
+        <p style="color:var(--color-text-muted); margin-top:var(--space-2);">${chi.note}</p>
+      </div>`;
+    }
+  }
+
+  return `<div class="card" style="margin-bottom:var(--space-4);">
+    <h4 style="margin-bottom:var(--space-3);">Cause × Leak Type Matrix</h4>
+    <p class="denominator-note">${data.denominator_note || ''}</p>
+    <p class="denominator-note" style="margin-top:var(--space-2);">Groups below 10 members are suppressed (—).</p>
+    ${matrixHtml}
+  </div>${chiHtml}`;
+}
+
+// ── R6: Trends ─────────────────────────────────────────────────────────────
+
+function renderR6(data) {
+  let html = '';
+  if (data.scope_note) {
+    html += `<div class="card" style="background:var(--color-bg-card); border-left: 3px solid var(--color-warning); margin-bottom:var(--space-4);">
+      <p style="font-size:var(--font-size-sm);">⚠ ${data.scope_note}</p>
+    </div>`;
+  }
+  if (!data.trend_charts_available) {
+    html += `<div class="card"><p style="color:var(--color-text-muted);">${data.trend_charts_note || 'Insufficient data.'}</p></div>`;
+    return html;
+  }
+  const years = data.by_year.map(r => r.year);
+  const counts = data.by_year.map(r => r.new_sufferers);
+  html += `<div class="card" style="margin-bottom:var(--space-4);">
+    <h4 style="margin-bottom:var(--space-3);">New Sufferers Per Year</h4>
+    <canvas id="trends-chart" height="240"></canvas>
+  </div>`;
+  setTimeout(() => {
+    if (typeof Chart === 'undefined') return;
+    if (activeChart) { activeChart.destroy(); activeChart = null; }
+    const ctx = document.getElementById('trends-chart');
+    if (ctx) {
+      activeChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: years,
+          datasets: [{ label: 'New sufferers', data: counts, backgroundColor: CHART_COLORS[0], borderRadius: 4 }],
+        },
+        options: {
+          plugins: { legend: { display: false } },
+          scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0 } } },
+          responsive: true,
+          maintainAspectRatio: false,
+        },
+      });
+    }
+  }, 50);
+
+  // Per-year table
+  html += `<div class="card">
+    <h4 style="margin-bottom:var(--space-3);">Year-by-Year Detail</h4>
+    <div class="table-scroll"><table class="data-table">
+      <thead><tr>
+        <th>Year</th><th>New sufferers</th><th>Cumulative members</th><th>Cause breakdown</th><th>Type breakdown</th>
+      </tr></thead>
+      <tbody>
+        ${data.by_year.map(r => `<tr>
+          <td>${r.year}</td>
+          <td>${fmt(r.new_sufferers)}</td>
+          <td>${fmt(r.cumulative_members)}</td>
+          <td>${r.cause_breakdown_suppressed ? '<span class="cell-suppressed-label">Suppressed &lt;10</span>' : 'Available'}</td>
+          <td>${r.type_breakdown_suppressed ? '<span class="cell-suppressed-label">Suppressed &lt;10</span>' : 'Available'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>
+  </div>`;
+  return html;
+}
+
+// ── R8: Referral ────────────────────────────────────────────────────────────
+
+function renderR8(data) {
+  const p = data.primary;
+  let html = `<div class="card" style="margin-bottom:var(--space-4);">
+    <h4 style="margin-bottom:var(--space-3);">Referral Source Summary</h4>
+    <p class="denominator-note">${p.null_note}</p>
+    <p class="denominator-note" style="margin-top:var(--space-2);">${p.denominator_note}</p>
+    <div style="display:flex; gap:var(--space-6); margin: var(--space-4) 0;">
+      <div><div class="label-small">Members with source</div><div class="metric-value">${fmt(p.total_members_with_source)}</div></div>
+      <div><div class="label-small">Members with no source recorded</div><div class="metric-value">${fmt(p.total_members_null_source)}</div></div>
+    </div>
+    <canvas id="primary-chart" height="200" style="margin-bottom:var(--space-3);"></canvas>
+    <div class="table-scroll"><table class="data-table">
+      <thead><tr><th>Source</th><th>Count</th><th>% of members with source</th></tr></thead>
+      <tbody>
+        ${(p.breakdown || []).map(r => `<tr><td>${r.source}</td><td>${fmt(r.count)}</td><td>${fmtPct(r.pct_of_members_with_source)}</td></tr>`).join('')}
+      </tbody>
+    </table></div>
+  </div>`;
+
+  setTimeout(() => {
+    const bd = p.breakdown || [];
+    renderBarChart('primary-chart', bd.map(r => r.source), bd.map(r => r.count), 'Members');
+  }, 50);
+
+  if (data.by_year && data.by_year.length > 0 && data.shown_sources && data.shown_sources.length > 0) {
+    html += `<div class="card">
+      <h4 style="margin-bottom:var(--space-3);">By Membership Year</h4>
+      <p class="denominator-note">Only sources with ≥10 members are shown. Groups below 10 are suppressed (—).</p>
+      <div class="table-scroll"><table class="data-table">
+        <thead><tr><th>Year</th>${data.shown_sources.map(s => `<th>${s}</th>`).join('')}</tr></thead>
+        <tbody>
+          ${data.by_year.map(r => `<tr><td>${r.year}</td>${data.shown_sources.map(s => suppCell(r[s])).join('')}</tr>`).join('')}
+        </tbody>
+      </table></div>
+    </div>`;
+  }
+  return html;
+}
+
+// ── Main load function ─────────────────────────────────────────────────────
+
+async function loadReport() {
+  const content = document.getElementById('report-content');
+  content.innerHTML = `<div style="text-align:center; padding:var(--space-8); color:var(--color-text-muted);">Loading…</div>`;
+
+  const params = getFilterParams();
+  const url = `/api/reports/${reportMeta.path}?${params}`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      renderError(`Error loading report: ${err.detail || res.statusText}`);
+      return;
+    }
+    const data = await res.json();
+
+    // Update title / meta
+    document.getElementById('report-title').textContent = REPORT_TITLES[reportId] || `Report ${reportId}`;
+
+    // Render report-specific content
+    let html;
+    if (reportId === 'r1') html = renderR1(data);
+    else if (reportId === 'r6') html = renderR6(data);
+    else if (reportId === 'r7') html = renderR7(data);
+    else if (reportId === 'r8') html = renderR8(data);
+    else html = renderGeneric(data);
+
+    content.innerHTML = html;
+
+    // Export buttons
+    const exportBar = `<div style="display:flex; gap:var(--space-3); margin-top:var(--space-4); padding-top:var(--space-4); border-top: 1px solid var(--color-border);">
+      <button class="btn btn-ghost" onclick="window.print()">Print / PDF</button>
+    </div>`;
+    content.insertAdjacentHTML('beforeend', exportBar);
+
+  } catch (e) {
+    renderError('Failed to load report data. Please try again.');
+    console.error(e);
+  }
+}
+
+// ── Initialise ─────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+  buildFilters();
+  loadReport();
+});
+</script>
+{% endblock %}

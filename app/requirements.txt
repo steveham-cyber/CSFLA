@@ -10,6 +10,7 @@ alembic==1.14.0
 # Azure — identity and services
 azure-identity==1.19.0
 azure-keyvault-keys==4.9.0
+azure-keyvault-secrets==4.9.0
 azure-storage-blob==12.23.0
 
 # Auth — Entra ID (MSAL)

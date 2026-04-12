@@ -1,6 +1,6 @@
 # Action Tracker
 
-Last updated: 2026-04-11 (v10)
+Last updated: 2026-04-11 (v15)
 
 > This file tracks all open, in-progress, and completed actions across the project. Update it whenever an action is resolved or a new one is identified. Review at the start of each session.
 
@@ -10,11 +10,8 @@ Last updated: 2026-04-11 (v10)
 
 | # | Action | Owner | Raised by | Notes |
 |---|---|---|---|---|
-| A-01 | Complete and sign off DPIA v0.1 | Data protection lead + Board | Lex | Draft at `DPIA v0.1 (Draft for Review).md`. Read, correct, and get approved before go-live. |
-| A-02 | Obtain Data Processing Agreement with Anthropic (Claude API) | Owner / Data protection lead | Lex | Required before Claude API goes live in production. Check if Anthropic's standard DPA covers UK/EU GDPR adequacy. |
-| A-09 | Produce threat model and security requirements document | Cipher | Goose | Now unblocked. Full Azure stack confirmed: Entra ID, Azure hosting, Azure Key Vault. |
-| A-05 | Take advice on EU GDPR Article 27 representative obligation | Owner / legal adviser | Lex | Charity processes EU residents' health data systematically. Quick legal question — needed before go-live. |
-| A-06 | Request research-specific export from membership system | Owner | Lex | Membership system should produce an export that excludes auth fields (password, verification codes, login IPs) entirely, rather than relying on the pipeline to strip them. Defence in depth. |
+| A-01 | Owner and Board approve DPIA v0.2 | Data protection lead + Board | Lex | DPIA updated to v0.2 — `is_volunteer` corrected, actions 4/5/6 closed. Ready for owner read-through and Board sign-off. Blocks go-live and Privacy Policy v1.1. |
+| A-02 | Obtain Data Processing Agreement with Anthropic (Claude API) | Owner / Data protection lead | Lex | Required before Claude API goes live in production. Owner to review Anthropic's standard DPA for UK/EU GDPR adequacy. AI module locked in codebase until complete. |
 
 ---
 
@@ -22,11 +19,7 @@ Last updated: 2026-04-11 (v10)
 
 | # | Action | Owner | Raised by | Notes |
 |---|---|---|---|---|
-| A-07 | Cipher and Lex sign-off on Data Architecture Spec v0.3 | Cipher + Lex | Atlas | Draft at `Data Architecture Spec v0.3 (Draft for Review).md`. All review issues resolved. Return for final sign-off. |
 | A-08 | Update Privacy Policy to v1.1 | Lex | Lex | Pending DPIA approval (A-01). Will reference the research application and pseudonymisation pipeline. |
-| A-09 | Produce threat model and security requirements document | Cipher | Goose | Begins after Atlas's architecture spec (A-07) is drafted. Lex review also required. |
-| A-10 | Sign off pseudonymisation spec and pipeline design | Cipher + Lex | Goose | Joint sign-off required before Bolt begins any data pipeline implementation. Unblocked once A-07 is complete. |
-| A-11 | Initialise GitHub repository and push scaffolding | Bolt | Goose | Local scaffolding complete. Push to private GitHub repo when ready. Branch protection to be configured on push. |
 
 ---
 
@@ -53,3 +46,10 @@ Last updated: 2026-04-11 (v10)
 | C-17 | Sketch: Wireframes v0.3 — W-01 resolved, brand palette confirmed | 2026-04-11 | Colours extracted from Quisk Style Guide. Wireframes updated to v0.3. CSS written to `app/static/css/main.css`. All wireframe items resolved. |
 | C-18 | Probe: Test strategy v0.1 and test environment | 2026-04-11 | Test Strategy v0.1 saved. Pipeline utility modules created. conftest.py, 4 fixture CSVs, and blocking test files written. pytest.ini configured with asyncio_mode=auto. |
 | C-19 | Cipher + Lex: Joint review of Data Architecture Spec v0.2 | 2026-04-11 | 4 issues raised (C-SEC-01 to C-SEC-04 / L-GDPR-01 to L-GDPR-02). Security Threat Model v0.1 signed off by Lex. Atlas produced v0.3 resolving all issues. |
+| C-20 | Cipher + Lex: Sign off Data Architecture Spec v0.3 | 2026-04-11 | Both signed off. Pipeline implementation (A-10) unblocked. |
+| C-21 | Bolt: Initialise GitHub repository | 2026-04-11 | Git repo initialised. 64 files committed. `.github/workflows/test.yml` CI pipeline created. Branch protection to be configured after pushing to GitHub remote. |
+| C-22 | Lex: DPIA actions 4, 5, 6 resolved | 2026-04-11 | OAuth confirmed as Entra ID (4), hosting confirmed as Azure (5), Article 27 representative obligation confirmed not triggered (6). DPIA updated to v0.2. |
+| C-23 | Bolt: Import pipeline implemented | 2026-04-11 | Full ETL pipeline per Data Architecture Spec v0.3. `pipeline/__init__.py`, `pipeline/key_vault.py`, `ErasureRegister` model added, `imports.py` route wired up. `azure-keyvault-secrets` added to requirements. 10 integration tests in `test_import_pipeline.py`. |
+| C-24 | Bolt: All 8 standard report backends implemented | 2026-04-11 | `reports/__init__.py` updated (added `pct()` helper). `reports/r1_cohort.py` through `reports/r8_referral.py` written. `api/routes/reports.py` rewritten with 8 individual endpoints. Chi-square test in R7 (scipy). NULL referral_source handled separately in R8. k≥10 enforced throughout. |
+| C-25 | Probe: Integration tests for all 8 report backends | 2026-04-11 | `app/tests/test_reports/conftest.py` with 24-member `standard_cohort` fixture (12 England / 9 Scotland / 2 Germany / 1 France). `test_r1_cohort.py` through `test_r8_referral.py` written. Tests cover structure, suppression (k≥10), filters, and empty-cohort edge cases. Transaction-rollback pattern with `db.flush()`. |
+| C-26 | Sketch + Bolt: Full UI template set | 2026-04-11 | `app/templates/base.html` (app shell, nav, auth-gated admin links). `dashboard.html` (metric cards + Chart.js charts). `reports_list.html` (8 report cards). `report_view.html` (filter panel, per-report renderers, print/PDF). `import.html` (drag-drop upload, 6-step progress, history). `ai_analysis.html` (module-locked notice). `admin.html` (cohort stats + last import). CSS utilities added to `main.css` (metric-value, report-card, table-scroll, data-table, cell-suppressed, filter-input, denominator-note, etc). |
