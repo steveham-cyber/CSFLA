@@ -29,7 +29,7 @@ async def get_pseudonymisation_key() -> str:
     settings = get_settings()
 
     if settings.is_local:
-        key = os.environ.get("TEST_PSEUDONYMISATION_KEY")
+        key = settings.test_pseudonymisation_key or os.environ.get("TEST_PSEUDONYMISATION_KEY")
         if not key:
             raise PipelineHalt(
                 "TEST_PSEUDONYMISATION_KEY is not set — "

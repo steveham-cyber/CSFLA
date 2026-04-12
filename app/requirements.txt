@@ -33,8 +33,8 @@ cryptography==43.0.3
 itsdangerous==2.2.0
 
 # Statistics (Report 7 chi-square test)
-numpy==2.1.3
-scipy==1.14.1
+numpy==2.0.2
+scipy==1.13.1
 
 # Testing
 pytest==8.3.3

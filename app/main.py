@@ -22,7 +22,7 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=settings.secret_key,
     https_only=not settings.is_local,   # Secure flag on in production, off for local HTTP
-    same_site="strict",                  # Block cross-site request forgery vectors
+    same_site="lax",                     # lax required for OAuth redirect to return session cookie
     max_age=3600,                        # 1-hour session lifetime
 )
 
