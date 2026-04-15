@@ -11,7 +11,7 @@ from sqlalchemy import (
     Boolean, Column, ForeignKey, Integer, SmallInteger,
     String, Text, TIMESTAMP, UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, relationship
 from sqlalchemy.sql import func
 import uuid
@@ -141,3 +141,56 @@ class ErasureRegister(Base):
     erased_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     erased_by = Column(Text, nullable=False)          # Entra ID object ID of admin who actioned erasure
     erasure_reason = Column(Text)                     # Optional: e.g. 'Article 17 request', 'deceased'
+
+
+class CustomReport(Base):
+    """
+    User-composed report: a named, ordered list of report blocks with per-block filters.
+
+    Scoped to the creating user's Entra ID OID (created_by). Users can only
+    read, update, or delete their own reports.
+
+    definition schema:
+        {
+          "blocks": [
+            {
+              "instance_id": "<unique string within this report>",
+              "report_id": "r1" | "r2" | ... | "r8",
+              "title": "<optional display title>",
+              "filters": {"country": "GB", "year_from": 2020, ...}
+            }
+          ]
+        }
+    """
+
+    __tablename__ = "custom_reports"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_by = Column(Text, nullable=False)          # Entra ID OID — never a real name
+    name = Column(Text, nullable=False)
+    description = Column(Text)
+    definition = Column(JSONB, nullable=False)          # {"blocks": [...]}
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+    audits = relationship("CustomReportAudit", foreign_keys="CustomReportAudit.report_id",
+                          primaryjoin="CustomReport.id == CustomReportAudit.report_id",
+                          passive_deletes=True)
+
+
+class CustomReportAudit(Base):
+    """
+    Immutable log of create/update/delete/run actions on custom reports.
+
+    report_id is nullable — audit row survives report deletion.
+    performed_by is an Entra ID OID (never a real name).
+    """
+
+    __tablename__ = "custom_report_audit"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    report_id = Column(UUID(as_uuid=True), nullable=True)   # nullable: survives deletion
+    action = Column(Text, nullable=False)                   # 'create' | 'update' | 'delete' | 'run'
+    performed_by = Column(Text, nullable=False)             # Entra ID OID
+    performed_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    detail = Column(JSONB)                                  # {"name": ..., "block_count": ...}
