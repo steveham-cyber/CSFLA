@@ -39,24 +39,14 @@ class TestBlockRegistry:
             assert "run" in block, f"{block_id} missing run"
             assert callable(block["run"]), f"{block_id} run must be callable"
 
-    def test_run_block_rejects_unknown_block(self) -> None:
-        import asyncio
+    async def test_run_block_rejects_unknown_block(self) -> None:
         from reports.blocks import run_block
+        with pytest.raises(ValueError, match="Unknown block"):
+            await run_block(None, "r99", {})
 
-        async def _run():
-            with pytest.raises(ValueError, match="Unknown block"):
-                await run_block(None, "r99", {})
-
-        asyncio.get_event_loop().run_until_complete(_run())
-
-    def test_run_block_strips_unknown_filter_keys(self, db_session) -> None:
+    async def test_run_block_strips_unknown_filter_keys(self, db_session) -> None:
         """run_block must silently ignore filters not accepted by the block."""
-        import asyncio
         from reports.blocks import run_block
-
-        async def _run():
-            # r1 (Cohort Overview) accepts NO filters — unknown keys must be stripped
-            result = await run_block(db_session, "r1", {"country": "GB", "gender": "female"})
-            assert isinstance(result, dict)
-
-        asyncio.get_event_loop().run_until_complete(_run())
+        # r1 (Cohort Overview) accepts NO filters — unknown keys must be stripped
+        result = await run_block(db_session, "r1", {"country": "GB", "gender": "female"})
+        assert isinstance(result, dict)
