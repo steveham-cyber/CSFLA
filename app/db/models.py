@@ -8,7 +8,7 @@ All models use pseudo_id as the primary identifier.
 
 from datetime import datetime
 from sqlalchemy import (
-    Boolean, Column, ForeignKey, Index, Integer, SmallInteger,
+    Boolean, CheckConstraint, Column, ForeignKey, Index, Integer, SmallInteger,
     String, Text, TIMESTAMP, UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
@@ -204,4 +204,8 @@ class CustomReportAudit(Base):
     __table_args__ = (
         Index("ix_custom_report_audit_report_id", "report_id"),
         Index("ix_custom_report_audit_performed_by", "performed_by"),
+        CheckConstraint(
+            "action IN ('create', 'update', 'delete', 'run')",
+            name="ck_custom_report_audit_action",
+        ),
     )
