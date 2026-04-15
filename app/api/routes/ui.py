@@ -84,6 +84,51 @@ async def reports_list(request: Request):
     })
 
 
+@router.get("/reports/builder", response_class=HTMLResponse, include_in_schema=False)
+async def report_builder_list(request: Request):
+    user = _require_ui_user(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    return templates.TemplateResponse("report_builder.html", {
+        "request": request,
+        "user": user,
+        "active_nav": "reports",
+        "page_title": "Custom Report Builder",
+        "mode": "list",
+        "report_id": None,
+    })
+
+
+@router.get("/reports/builder/new", response_class=HTMLResponse, include_in_schema=False)
+async def report_builder_new(request: Request):
+    user = _require_ui_user(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    return templates.TemplateResponse("report_builder.html", {
+        "request": request,
+        "user": user,
+        "active_nav": "reports",
+        "page_title": "New Custom Report",
+        "mode": "new",
+        "report_id": None,
+    })
+
+
+@router.get("/reports/builder/{report_id}", response_class=HTMLResponse, include_in_schema=False)
+async def report_builder_edit(request: Request, report_id: str):
+    user = _require_ui_user(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    return templates.TemplateResponse("report_builder.html", {
+        "request": request,
+        "user": user,
+        "active_nav": "reports",
+        "page_title": "Edit Custom Report",
+        "mode": "edit",
+        "report_id": report_id,
+    })
+
+
 @router.get("/reports/{report_id}", response_class=HTMLResponse, include_in_schema=False)
 async def report_view(request: Request, report_id: str):
     user = _require_ui_user(request)

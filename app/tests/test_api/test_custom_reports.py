@@ -230,3 +230,20 @@ class TestCustomReportAPI:
         # preview requires a live DB to run blocks — if DB unavailable it returns 500
         # we verify the endpoint exists and is auth-gated (not 401/404/405)
         assert response.status_code in (200, 500)
+
+
+class TestCustomReportUIRoutes:
+    """Builder UI pages serve HTML and require auth."""
+
+    async def test_builder_list_page_requires_auth(self, anon_client) -> None:
+        response = await anon_client.get("/reports/builder")
+        # Redirects to /auth/login for unauthenticated users
+        assert response.status_code in (302, 401)
+
+    async def test_builder_list_page_accessible_to_researcher(self, researcher_client) -> None:
+        response = await researcher_client.get("/reports/builder")
+        assert response.status_code == 200
+
+    async def test_builder_new_page_accessible_to_researcher(self, researcher_client) -> None:
+        response = await researcher_client.get("/reports/builder/new")
+        assert response.status_code == 200
