@@ -81,18 +81,25 @@ function builderRenderList(container, reports) {
         <a href="/reports/builder/${_esc(r.id)}" style="font-weight:600; text-decoration:none; color:var(--color-text);">${_esc(r.name)}</a>
         ${r.description ? `<p style="font-size:var(--font-size-sm); color:var(--color-text-muted); margin:var(--space-1) 0 0;">${_esc(r.description)}</p>` : ''}
         <p style="font-size:var(--font-size-sm); color:var(--color-text-muted); margin:var(--space-1) 0 0;">
-          ${r.block_count} block${r.block_count !== 1 ? 's' : ''} · Last updated ${_fmtDate(r.updated_at)}
+          ${_esc(String(r.block_count))} block${r.block_count !== 1 ? 's' : ''} · Last updated ${_esc(_fmtDate(r.updated_at))}
         </p>
       </div>
       <div style="display:flex; gap:var(--space-2);">
         <a href="/reports/builder/${_esc(r.id)}" class="btn btn-ghost" style="font-size:var(--font-size-sm);">Edit</a>
         <button class="btn btn-ghost" style="font-size:var(--font-size-sm); color:var(--color-danger);"
-                onclick="builderDeleteReport('${_esc(r.id)}', '${_esc(r.name)}')">Delete</button>
+                data-delete-id="${_esc(r.id)}" data-delete-name="${_esc(r.name)}">Delete</button>
       </div>
     </div>
   `).join('');
 
   container.innerHTML = `<div style="padding:0 var(--space-4);">${rows}</div>`;
+
+  // Attach delete handlers via event listeners — never inline onclick with user data
+  container.querySelectorAll('[data-delete-id]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      builderDeleteReport(btn.dataset.deleteId, btn.dataset.deleteName);
+    });
+  });
 }
 
 async function builderDeleteReport(reportId, name) {
@@ -500,7 +507,7 @@ function _esc(str) {
 function _filterSummary(filters) {
   const parts = Object.entries(filters)
     .filter(([, v]) => v !== null && v !== undefined && v !== '')
-    .map(([k, v]) => `${FILTER_LABELS[k] || k}: ${v}`);
+    .map(([k, v]) => `${_esc(FILTER_LABELS[k] || k)}: ${_esc(String(v))}`);
   return parts.join(' \u00b7 ');
 }
 

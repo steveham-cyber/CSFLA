@@ -65,8 +65,16 @@
         <span>Reports</span>
       </a>
 
-      <a href="/reports/builder" class="nav-link {% if active_nav == 'builder' %}active{% endif %}">
-        Custom Reports
+      <a href="/reports/builder"
+         class="nav-item {% if active_nav == 'builder' %}active{% endif %}"
+         aria-current="{% if active_nav == 'builder' %}page{% endif %}">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+          <rect x="1" y="1" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+          <rect x="10" y="1" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+          <rect x="1" y="10" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+          <rect x="10" y="10" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+        <span>Custom Reports</span>
       </a>
 
       <a href="/ai-analysis"
