@@ -8,7 +8,7 @@ All models use pseudo_id as the primary identifier.
 
 from datetime import datetime
 from sqlalchemy import (
-    Boolean, Column, ForeignKey, Integer, SmallInteger,
+    Boolean, Column, ForeignKey, Index, Integer, SmallInteger,
     String, Text, TIMESTAMP, UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
@@ -171,11 +171,15 @@ class CustomReport(Base):
     description = Column(Text)
     definition = Column(JSONB, nullable=False)          # {"blocks": [...]}
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
-    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
     audits = relationship("CustomReportAudit", foreign_keys="CustomReportAudit.report_id",
                           primaryjoin="CustomReport.id == CustomReportAudit.report_id",
                           passive_deletes=True)
+
+    __table_args__ = (
+        Index("ix_custom_reports_created_by", "created_by"),
+    )
 
 
 class CustomReportAudit(Base):
@@ -194,3 +198,10 @@ class CustomReportAudit(Base):
     performed_by = Column(Text, nullable=False)             # Entra ID OID
     performed_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     detail = Column(JSONB)                                  # {"name": ..., "block_count": ...}
+
+    VALID_ACTIONS: frozenset[str] = frozenset({"create", "update", "delete", "run"})
+
+    __table_args__ = (
+        Index("ix_custom_report_audit_report_id", "report_id"),
+        Index("ix_custom_report_audit_performed_by", "performed_by"),
+    )
