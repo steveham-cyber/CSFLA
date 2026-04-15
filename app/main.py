@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from config import get_settings
-from api.routes import auth, imports, reports, admin
+from api.routes import auth, imports, reports, admin, custom_reports
 from api.routes import ui
 
 settings = get_settings()
@@ -84,6 +84,7 @@ app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(imports.router, prefix="/api/imports", tags=["imports"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
+app.include_router(custom_reports.router, prefix="/api/custom-reports", tags=["custom-reports"])
 
 
 @app.exception_handler(Exception)
