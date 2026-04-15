@@ -17,6 +17,7 @@ Cipher security requirements implemented here:
 """
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -31,6 +32,8 @@ from auth.entra import CurrentUser
 from db.connection import get_db
 from db.models import CustomReport, CustomReportAudit
 from reports.blocks import BLOCKS, VALID_FILTER_KEYS, run_block
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -346,5 +349,6 @@ async def _execute_definition(db: AsyncSession, definition: dict) -> dict:
             data = await run_block(db, block["report_id"], block.get("filters", {}))
             results[instance_id] = {"ok": True, "data": data}
         except Exception as exc:
-            results[instance_id] = {"ok": False, "error": str(exc)}
+            log.error("Block %r execution failed: %s", block.get("report_id"), exc)
+            results[instance_id] = {"ok": False, "error": "Block execution failed."}
     return results
