@@ -276,7 +276,10 @@ async def run_saved_report(
         report_id=report.id,
         action="run",
         performed_by=user.id,
-        detail={"dimension_count": len(defn["dimensions"])},
+        detail={
+            "dimensions": defn["dimensions"],
+            "filters": defn.get("filters", {}),
+        },
     )
     await db.commit()
     return {"report_id": str(report.id), "name": report.name, **result}
