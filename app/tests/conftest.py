@@ -216,6 +216,19 @@ async def viewer_client(db_session: AsyncSession, viewer_user: CurrentUser) -> A
 
 
 @pytest_asyncio.fixture
+async def viewer_client_no_db(viewer_user: CurrentUser) -> AsyncClient:
+    """
+    Authenticated viewer client with no DB dependency.
+    Use for tests where the 403 role check fires before any DB access is needed.
+    """
+    async with AsyncClient(
+        transport=_PerRequestUserTransport(user=viewer_user),
+        base_url="http://test",
+    ) as client:
+        yield client
+
+
+@pytest_asyncio.fixture
 async def researcher_client(db_session: AsyncSession, researcher_user: CurrentUser) -> AsyncClient:
     """Authenticated client with researcher role."""
     async def _override_db():

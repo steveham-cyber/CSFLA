@@ -91,6 +91,32 @@ class TestCustomReportAuth:
         assert response.status_code == 401
 
 
+class TestViewerRoleExclusion:
+    """Viewer role must be excluded from all custom report builder endpoints."""
+
+    async def test_viewer_cannot_list_reports(self, viewer_client_no_db) -> None:
+        response = await viewer_client_no_db.get("/api/custom-reports/")
+        assert response.status_code == 403
+
+    async def test_viewer_cannot_run_adhoc(self, viewer_client_no_db) -> None:
+        response = await viewer_client_no_db.post(
+            "/api/custom-reports/run",
+            json={"dimensions": ["country"]},
+        )
+        assert response.status_code == 403
+
+    async def test_viewer_cannot_create_report(self, viewer_client_no_db) -> None:
+        response = await viewer_client_no_db.post(
+            "/api/custom-reports/",
+            json={"name": "Viewer Report", "definition": {"dimensions": ["country"]}},
+        )
+        assert response.status_code == 403
+
+    async def test_viewer_cannot_access_fields(self, viewer_client_no_db) -> None:
+        response = await viewer_client_no_db.get("/api/custom-reports/fields")
+        assert response.status_code == 403
+
+
 class TestQueryDefinitionValidation:
     """Pydantic validation — no DB needed (422 returned before DB is touched)."""
 
