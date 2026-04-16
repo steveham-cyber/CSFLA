@@ -3,7 +3,14 @@ Custom report tests — query builder unit tests + API tests.
 DB-dependent tests require the test PostgreSQL instance (csfleak_test).
 Tests without a db_session fixture run without a DB connection.
 """
+import uuid
+
 import pytest
+import pytest_asyncio
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from db.models import CustomReportAudit
 
 
 class TestQueryBuilderUnit:
@@ -254,7 +261,7 @@ class TestRunEndpoint:
         )
         rows = full.json()["rows"]
         if not rows:
-            return  # no data in test DB — skip
+            pytest.skip("No data in test DB — cannot verify filter behaviour")
         first_country = rows[0]["country"]
         filtered = await researcher_client.post(
             "/api/custom-reports/run",
@@ -265,6 +272,91 @@ class TestRunEndpoint:
         )
         for row in filtered.json()["rows"]:
             assert row["country"] == first_country
+
+    # DEFECT-04: All 6 dimensions
+    async def test_run_all_six_dimensions(self, researcher_client) -> None:
+        response = await researcher_client.post(
+            "/api/custom-reports/run",
+            json={"dimensions": ["country", "gender", "age_band",
+                                 "leak_type", "cause_group", "individual_cause"]},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["columns"] == [
+            "country", "gender", "age_band",
+            "leak_type", "cause_group", "individual_cause",
+        ]
+
+    # DEFECT-05: Filter on non-dimension field
+    async def test_run_filter_on_non_dimension_field(
+        self, researcher_client
+    ) -> None:
+        # country is the dimension; gender is filter-only (not in dimensions)
+        response = await researcher_client.post(
+            "/api/custom-reports/run",
+            json={
+                "dimensions": ["country"],
+                "filters": {"gender": ["female"]},
+            },
+        )
+        assert response.status_code == 200
+        # columns should only contain the dimension, not the filter field
+        assert response.json()["columns"] == ["country"]
+
+    # DEFECT-06: cause_group filter path
+    async def test_run_cause_group_filter(self, researcher_client) -> None:
+        response = await researcher_client.post(
+            "/api/custom-reports/run",
+            json={
+                "dimensions": ["country"],
+                "filters": {"cause_group": ["Iatrogenic"]},
+            },
+        )
+        assert response.status_code == 200
+        # cause_group uses a CASE WHEN expression in WHERE — verify it doesn't error
+        assert "rows" in response.json()
+
+    # DEFECT-02: Audit row assertions
+    async def test_run_adhoc_writes_audit_row(
+        self, researcher_client, db_session
+    ) -> None:
+        await researcher_client.post(
+            "/api/custom-reports/run",
+            json={"dimensions": ["country"]},
+        )
+        result = await db_session.execute(
+            select(CustomReportAudit).where(
+                CustomReportAudit.action == "run_adhoc"
+            )
+        )
+        rows = result.scalars().all()
+        assert len(rows) >= 1
+        row = rows[-1]
+        assert row.action == "run_adhoc"
+        assert row.report_id is None
+        assert row.performed_by == "00000000-0000-0000-0000-researcher00"
+
+    async def test_run_saved_writes_audit_row(
+        self, researcher_client, db_session
+    ) -> None:
+        create = await researcher_client.post(
+            "/api/custom-reports/",
+            json={"name": "Audit Test Report", "definition": {"dimensions": ["country"]}},
+        )
+        assert create.status_code == 201
+        report_id = create.json()["id"]
+
+        await researcher_client.post(f"/api/custom-reports/{report_id}/run")
+
+        result = await db_session.execute(
+            select(CustomReportAudit).where(
+                CustomReportAudit.action == "run",
+                CustomReportAudit.report_id == uuid.UUID(report_id),
+            )
+        )
+        rows = result.scalars().all()
+        assert len(rows) >= 1
+        assert str(rows[-1].report_id) == report_id
 
 
 class TestCustomReportCRUD:
@@ -371,3 +463,122 @@ class TestCustomReportCRUD:
         )
         assert run.status_code == 200
         assert isinstance(run.json()["suppressed_count"], int)
+
+    # DEFECT-01: Update endpoint tests
+    async def test_update_report_returns_200(self, researcher_client) -> None:
+        create = await researcher_client.post(
+            "/api/custom-reports/",
+            json={"name": "Original Name", "definition": {"dimensions": ["country"]}},
+        )
+        assert create.status_code == 201
+        report_id = create.json()["id"]
+
+        update = await researcher_client.post(
+            f"/api/custom-reports/{report_id}",
+            json={
+                "name": "Updated Name",
+                "definition": {"dimensions": ["gender"]},
+            },
+        )
+        assert update.status_code == 200
+        data = update.json()
+        assert data["name"] == "Updated Name"
+        assert data["definition"]["dimensions"] == ["gender"]
+
+    async def test_update_preserves_id(self, researcher_client) -> None:
+        create = await researcher_client.post(
+            "/api/custom-reports/",
+            json={"name": "Preserve ID Test", "definition": {"dimensions": ["country"]}},
+        )
+        assert create.status_code == 201
+        original_id = create.json()["id"]
+
+        update = await researcher_client.post(
+            f"/api/custom-reports/{original_id}",
+            json={"name": "New Name"},
+        )
+        assert update.status_code == 200
+        assert update.json()["id"] == original_id
+
+    async def test_update_other_users_report_returns_404(
+        self, researcher_client, admin_client
+    ) -> None:
+        create = await admin_client.post(
+            "/api/custom-reports/",
+            json={"name": "Admin's Report", "definition": {"dimensions": ["country"]}},
+        )
+        assert create.status_code == 201
+        report_id = create.json()["id"]
+
+        update = await researcher_client.post(
+            f"/api/custom-reports/{report_id}",
+            json={"name": "Hijacked Name"},
+        )
+        assert update.status_code == 404
+
+    # DEFECT-07: Invalid UUID in path param
+    async def test_get_invalid_uuid_returns_404(
+        self, researcher_client
+    ) -> None:
+        response = await researcher_client.get(
+            "/api/custom-reports/not-a-valid-uuid"
+        )
+        assert response.status_code == 404
+
+
+# DEFECT-03: k≥10 suppression test with real data
+class TestRunEndpointWithData:
+    """DB-dependent: seeds known counts to assert k≥10 suppression behaviour."""
+
+    @pytest_asyncio.fixture
+    async def cohort_with_small_group(self, db_session: AsyncSession):
+        """
+        Seeds two groups:
+        - 12 members in England (above threshold — should appear)
+        - 5 members in Scotland (below threshold — should be suppressed)
+        """
+        from tests.test_reports.conftest import _make_batch, _make_member
+
+        batch = await _make_batch(db_session)
+        await db_session.flush()
+        bid = batch.batch_id
+
+        for i in range(12):
+            await _make_member(
+                db_session, bid, f"eng-k10-{i:04d}",
+                country="England",
+            )
+
+        for i in range(5):
+            await _make_member(
+                db_session, bid, f"sco-k10-{i:04d}",
+                country="Scotland",
+            )
+
+        await db_session.flush()
+        yield {"england": 12, "scotland": 5}
+
+    async def test_k10_suppresses_small_cohorts(
+        self, researcher_client, cohort_with_small_group
+    ) -> None:
+        response = await researcher_client.post(
+            "/api/custom-reports/run",
+            json={"dimensions": ["country"]},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        countries = [r["country"] for r in data["rows"]]
+        assert "England" in countries          # 12 members — shown
+        assert "Scotland" not in countries     # 5 members — suppressed
+        assert data["suppressed_count"] >= 1
+
+    async def test_k10_shown_rows_all_meet_threshold(
+        self, researcher_client, cohort_with_small_group
+    ) -> None:
+        response = await researcher_client.post(
+            "/api/custom-reports/run",
+            json={"dimensions": ["country"]},
+        )
+        assert response.status_code == 200
+        for row in response.json()["rows"]:
+            assert row["member_count"] >= 10
