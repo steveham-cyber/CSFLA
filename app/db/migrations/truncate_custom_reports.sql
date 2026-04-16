@@ -5,5 +5,7 @@
 -- Run with:
 --   psql $DATABASE_URL -f app/db/migrations/truncate_custom_reports.sql
 
+BEGIN;
 TRUNCATE TABLE custom_report_audit;
 TRUNCATE TABLE custom_reports;
+COMMIT;
