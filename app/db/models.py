@@ -196,13 +196,13 @@ class CustomReportAudit(Base):
     performed_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     detail = Column(JSONB)                                  # {"name": ..., "block_count": ...}
 
-    VALID_ACTIONS: frozenset[str] = frozenset({"create", "update", "delete", "run"})
+    VALID_ACTIONS: frozenset[str] = frozenset({"create", "update", "delete", "run", "run_adhoc"})
 
     __table_args__ = (
         Index("ix_custom_report_audit_report_id", "report_id"),
         Index("ix_custom_report_audit_performed_by", "performed_by"),
         CheckConstraint(
-            "action IN ('create', 'update', 'delete', 'run')",
+            "action IN ('create', 'update', 'delete', 'run', 'run_adhoc')",
             name="ck_custom_report_audit_action",
         ),
     )
