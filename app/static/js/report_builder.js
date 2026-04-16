@@ -316,7 +316,11 @@ async function apiFetch(url, opts = {}) {
     });
     if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.detail || `HTTP ${res.status}`);
+        let detail = body.detail;
+        if (Array.isArray(detail)) {
+            detail = detail.map(e => e.msg || JSON.stringify(e)).join('; ');
+        }
+        throw new Error(detail || `HTTP ${res.status}`);
     }
     if (res.status === 204) return null;
     return res.json();

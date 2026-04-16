@@ -150,16 +150,13 @@ class CustomReport(Base):
     Scoped to the creating user's Entra ID OID (created_by). Users can only
     read, update, or delete their own reports.
 
-    definition schema:
+    definition JSONB shape:
         {
-          "blocks": [
-            {
-              "instance_id": "<unique string within this report>",
-              "report_id": "r1" | "r2" | ... | "r8",
-              "title": "<optional display title>",
-              "filters": {"country": "GB", "year_from": 2020, ...}
+            "dimensions": ["country", "gender", ...],   # 1-6 field keys
+            "filters": {                                 # optional
+                "country": ["England", "Scotland"],
+                "gender": ["Female"]
             }
-          ]
         }
     """
 
