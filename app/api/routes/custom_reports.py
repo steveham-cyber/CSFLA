@@ -209,7 +209,16 @@ async def run_unsaved_report(
     db: AsyncSession = Depends(get_db),
 ):
     """Execute a query definition without saving it."""
-    return await run_query(db, body.dimensions, body.filters)
+    result = await run_query(db, body.dimensions, body.filters)
+    await _audit(
+        db,
+        report_id=None,
+        action="run_adhoc",
+        performed_by=user.id,
+        detail={"dimensions": body.dimensions, "filters": body.filters},
+    )
+    await db.commit()
+    return result
 
 
 @router.get("/{report_id}")
@@ -258,6 +267,9 @@ async def run_saved_report(
     """Execute a saved report and write an audit row."""
     report = await _get_own_report(_parse_report_id(report_id), user, db)
     defn = report.definition
+    # The audit row is written in the same transaction as the commit below.
+    # run_query executes in its own async context (no session writes), so
+    # if run_query raises, the audit row is never written — consistent state.
     result = await run_query(db, defn["dimensions"], defn.get("filters", {}))
     await _audit(
         db,
@@ -300,5 +312,6 @@ async def update_custom_report(
         "name": report.name,
         "description": report.description,
         "definition": report.definition,
+        "created_at": report.created_at.isoformat(),
         "updated_at": report.updated_at.isoformat(),
     }
