@@ -92,7 +92,7 @@ async def report_builder_list(request: Request):
     return templates.TemplateResponse("report_builder.html", {
         "request": request,
         "user": user,
-        "active_nav": "reports",
+        "active_nav": "builder",
         "page_title": "Custom Report Builder",
         "mode": "list",
         "report_id": None,
@@ -107,7 +107,7 @@ async def report_builder_new(request: Request):
     return templates.TemplateResponse("report_builder.html", {
         "request": request,
         "user": user,
-        "active_nav": "reports",
+        "active_nav": "builder",
         "page_title": "New Custom Report",
         "mode": "new",
         "report_id": None,
@@ -122,7 +122,7 @@ async def report_builder_edit(request: Request, report_id: str):
     return templates.TemplateResponse("report_builder.html", {
         "request": request,
         "user": user,
-        "active_nav": "reports",
+        "active_nav": "builder",
         "page_title": "Edit Custom Report",
         "mode": "edit",
         "report_id": report_id,

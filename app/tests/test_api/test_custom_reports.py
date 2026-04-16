@@ -154,3 +154,26 @@ class TestQueryDefinitionValidation:
             json={"name": "", "definition": {"dimensions": ["country"]}},
         )
         assert response.status_code == 422
+
+
+class TestUIRoutes:
+    """Builder pages require auth — no DB needed."""
+
+    async def test_builder_redirects_unauthenticated(
+        self, anon_client
+    ) -> None:
+        response = await anon_client.get("/reports/builder")
+        # UI routes redirect (302) rather than returning 401
+        assert response.status_code == 302
+
+    async def test_builder_new_redirects_unauthenticated(
+        self, anon_client
+    ) -> None:
+        response = await anon_client.get("/reports/builder/new")
+        assert response.status_code == 302
+
+    async def test_builder_accessible_to_researcher(
+        self, researcher_client
+    ) -> None:
+        response = await researcher_client.get("/reports/builder")
+        assert response.status_code == 200

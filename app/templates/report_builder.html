@@ -1,125 +1,99 @@
 {% extends "base.html" %}
 
-{% block title %}{{ page_title }} — CSFLA Research{% endblock %}
+{% block title %}Custom Reports — CSFLA Research{% endblock %}
+
+{% block extra_head %}
+<script src="/static/js/report_builder.js" defer></script>
+{% endblock %}
 
 {% block content %}
-<div style="padding: var(--space-6);" id="builder-root"
-     data-mode="{{ mode }}"
-     data-report-id="{{ report_id or '' }}">
+<div id="builder-root"
+     data-report-id="{{ report_id or '' }}"
+     style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
 
-  <!-- ── Header ─────────────────────────────────────────────────────────── -->
-  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: var(--space-5);">
-    <div>
-      <a href="/reports" style="font-size:var(--font-size-sm); color:var(--color-text-muted); text-decoration:none;">
-        ← Reports
-      </a>
-      <h2 style="margin-top:var(--space-2); margin-bottom:0;" id="page-heading">{{ page_title }}</h2>
-    </div>
+  <!-- ── Page header ──────────────────────────────────────────────────── -->
+  <div style="
+    background:var(--color-bg-white);
+    border-bottom:1px solid var(--color-border);
+    padding:var(--space-3) var(--space-6);
+    display:flex;align-items:center;justify-content:space-between;
+    gap:var(--space-3);flex-shrink:0;
+  ">
+    <h1 style="
+      font-size:var(--font-size-lg);
+      letter-spacing:var(--letter-spacing-title);
+      color:var(--color-primary);
+      white-space:nowrap;
+    ">Custom Reports</h1>
 
-    {% if mode != 'list' %}
-    <div style="display:flex; gap:var(--space-3);">
-      <button id="btn-save" class="btn btn-primary" type="button" disabled>Save</button>
-      <button id="btn-run" class="btn btn-ghost" type="button" disabled>Run</button>
+    <div style="display:flex;align-items:center;gap:var(--space-2);flex:1;justify-content:flex-end;">
+      <input id="report-name-input" type="text" placeholder="Report name…"
+        maxlength="100" autocomplete="off"
+        style="
+          border:1px solid var(--color-border);
+          border-radius:var(--radius-md);
+          padding:6px var(--space-3);
+          font-size:var(--font-size-sm);
+          font-family:inherit;
+          color:var(--color-primary);
+          width:220px;
+        "/>
+      <button id="btn-new" style="
+        background:var(--color-bg-white);color:var(--color-primary);
+        border:1px solid var(--color-border);border-radius:var(--radius-md);
+        padding:6px var(--space-3);font-size:var(--font-size-sm);
+        font-weight:var(--font-weight-medium);cursor:pointer;font-family:inherit;
+      ">New</button>
+      <button id="btn-save" style="
+        background:var(--color-primary-mid);color:#fff;border:none;
+        border-radius:var(--radius-md);padding:6px var(--space-3);
+        font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);
+        cursor:pointer;font-family:inherit;
+      ">Save</button>
+      <button id="btn-run" style="
+        background:var(--color-primary);color:#fff;border:none;
+        border-radius:var(--radius-md);padding:6px var(--space-3);
+        font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);
+        cursor:pointer;font-family:inherit;
+      ">&#9654; Run</button>
     </div>
-    {% else %}
-    <a href="/reports/builder/new" class="btn btn-primary">+ New report</a>
-    {% endif %}
   </div>
 
-  <!-- ── List mode ──────────────────────────────────────────────────────── -->
-  {% if mode == 'list' %}
-  <div id="saved-reports-list" class="card">
-    <div class="loading-state" style="text-align:center; padding:var(--space-6); color:var(--color-text-muted);">
-      Loading your reports…
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- ── Builder mode (new / edit) ─────────────────────────────────────── -->
-  {% if mode in ['new', 'edit'] %}
-
-  <!-- Report name + description inputs -->
-  <div class="card" style="margin-bottom:var(--space-4);">
-    <div style="display:flex; gap:var(--space-4); flex-wrap:wrap;">
-      <div style="flex:2; min-width:200px;">
-        <label for="report-name" style="display:block; font-size:var(--font-size-sm); font-weight:600; margin-bottom:var(--space-1);">
-          Report name <span style="color:var(--color-danger);">*</span>
-        </label>
-        <input type="text" id="report-name" class="input"
-               placeholder="e.g. UK Cohort — Spinal Leaks 2020–2024"
-               maxlength="100"
-               style="width:100%;"
-               oninput="builderUpdateSaveState()">
-      </div>
-      <div style="flex:3; min-width:200px;">
-        <label for="report-description" style="display:block; font-size:var(--font-size-sm); font-weight:600; margin-bottom:var(--space-1);">
-          Description
-        </label>
-        <input type="text" id="report-description" class="input"
-               placeholder="Optional — context for this report"
-               maxlength="500"
-               style="width:100%;">
-      </div>
-    </div>
-    <p style="font-size:var(--font-size-xs); color:var(--color-text-muted); margin-top:var(--space-2); margin-bottom:0;">
-      These fields are stored and appear in the permanent audit log. Do not include member names or identifying information.
-    </p>
+  <!-- ── Saved reports bar ────────────────────────────────────────────── -->
+  <div id="saved-bar" style="
+    background:var(--color-bg-card);
+    border-bottom:1px solid var(--color-border);
+    padding:var(--space-2) var(--space-6);
+    display:flex;align-items:center;gap:var(--space-2);
+    overflow-x:auto;min-height:40px;flex-shrink:0;
+  ">
+    <span style="
+      font-size:var(--font-size-xs);color:var(--color-text-muted);
+      white-space:nowrap;font-weight:var(--font-weight-medium);
+    ">Saved:</span>
   </div>
 
-  <!-- Two-column builder layout -->
-  <div style="display:grid; grid-template-columns:280px 1fr; gap:var(--space-4); align-items:start;">
+  <!-- ── Builder body ─────────────────────────────────────────────────── -->
+  <div style="display:flex;flex:1;overflow:hidden;min-height:0;">
 
-    <!-- Left: Block palette -->
-    <div>
-      <h4 style="margin-bottom:var(--space-3); color:var(--color-text-muted); font-size:var(--font-size-sm); text-transform:uppercase; letter-spacing:0.05em;">
-        Available Blocks
-      </h4>
-      <div id="block-palette" style="display:flex; flex-direction:column; gap:var(--space-2);">
-        <div class="loading-state" style="font-size:var(--font-size-sm); color:var(--color-text-muted);">
-          Loading blocks…
+    <!-- Left panel: dimensions + filters -->
+    <div id="left-panel" style="
+      width:280px;flex-shrink:0;
+      background:var(--color-bg-white);
+      border-right:1px solid var(--color-border);
+      overflow-y:auto;padding:var(--space-4);
+    "></div>
+
+    <!-- Right panel: results table -->
+    <div id="right-panel" style="flex:1;overflow-y:auto;padding:var(--space-5) var(--space-6);">
+      <div id="result-area">
+        <div style="text-align:center;padding:64px var(--space-6);color:var(--color-text-muted);">
+          <div style="font-size:32px;margin-bottom:var(--space-3);">&#8862;</div>
+          <p style="font-size:var(--font-size-sm);">Select fields and press Run</p>
         </div>
       </div>
     </div>
 
-    <!-- Right: Canvas -->
-    <div>
-      <h4 style="margin-bottom:var(--space-3); color:var(--color-text-muted); font-size:var(--font-size-sm); text-transform:uppercase; letter-spacing:0.05em;">
-        Report Canvas <span id="block-count-badge" style="font-weight:400;">(0 / 8 blocks)</span>
-      </h4>
-      <div id="block-canvas"
-           style="min-height:200px; border:2px dashed var(--color-border); border-radius:var(--radius-md); padding:var(--space-3); display:flex; flex-direction:column; gap:var(--space-2);">
-        <p id="canvas-empty-hint" style="color:var(--color-text-muted); font-size:var(--font-size-sm); text-align:center; padding:var(--space-6) 0; margin:0;">
-          Drag blocks from the palette to build your report
-        </p>
-      </div>
-    </div>
   </div>
-
-  <!-- Results area (shown after Run) -->
-  <div id="results-area" style="margin-top:var(--space-6); display:none;">
-    <h3 style="margin-bottom:var(--space-4);">Results</h3>
-    <div id="results-content"></div>
-  </div>
-
-  <!-- Block config modal -->
-  <div id="config-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:100; align-items:center; justify-content:center;">
-    <div class="card" style="width:480px; max-width:90vw; max-height:80vh; overflow-y:auto;">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--space-4);">
-        <h4 id="config-modal-title" style="margin:0;">Configure Block</h4>
-        <button class="btn btn-ghost" onclick="builderCloseConfigModal()" type="button">✕</button>
-      </div>
-      <div id="config-modal-body"></div>
-      <div style="display:flex; justify-content:flex-end; gap:var(--space-3); margin-top:var(--space-4);">
-        <button class="btn btn-ghost" onclick="builderCloseConfigModal()" type="button">Cancel</button>
-        <button class="btn btn-primary" onclick="builderSaveBlockConfig()" type="button">Apply</button>
-      </div>
-    </div>
-  </div>
-
-  {% endif %}
-
 </div>
-
-<script src="/static/js/sortable.min.js"></script>
-<script src="/static/js/report_builder.js"></script>
 {% endblock %}
