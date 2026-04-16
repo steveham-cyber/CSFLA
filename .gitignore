@@ -42,3 +42,6 @@ uploads/
 staging/
 *.csv
 !app/tests/fixtures/*.csv
+
+# Git worktrees
+.worktrees/
