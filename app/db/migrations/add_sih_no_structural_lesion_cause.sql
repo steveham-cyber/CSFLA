@@ -1,0 +1,37 @@
+-- Migration: add 'sihNoStructuralLesion' individual cause value
+-- Required after Atlas/Nova cause group redesign (2026-04-16).
+--
+-- The causes_of_leak table has NO CHECK constraint on the cause column
+-- (only a UniqueConstraint on (pseudo_id, cause) — see models.py __table_args__).
+-- Cause values are validated exclusively at the pipeline layer via
+-- CauseOfLeak.VALID_VALUES. This migration is therefore documentation only.
+--
+-- Changes captured in application code on this date:
+--   • app/db/models.py           — 'sihNoStructuralLesion' added to CauseOfLeak.VALID_VALUES
+--   • app/reports/__init__.py    — CAUSE_GROUPS redesigned:
+--       - 'idiopathicIntracranialHypertension' moved out of 'Spontaneous / Structural'
+--         into new group 'IIH-Related / Cranial'
+--       - 'Spontaneous / Structural' renamed to 'Spontaneous / Structural (Spinal)'
+--         and 'sihNoStructuralLesion' added to it
+--       - 'Other' added as an explicit named group (was previously absorbed into
+--         the CASE WHEN ELSE / Unknown / Not disclosed fallback)
+--       - CAUSE_GROUP_ORDER updated to reflect new clinical ordering
+--
+-- To verify no DB-level constraint exists:
+--   SELECT conname, pg_get_constraintdef(oid)
+--   FROM pg_constraint
+--   WHERE conrelid = 'causes_of_leak'::regclass;
+--
+-- If a constraint is found in future, add 'sihNoStructuralLesion' as follows:
+-- BEGIN;
+-- ALTER TABLE causes_of_leak DROP CONSTRAINT <constraint_name>;
+-- ALTER TABLE causes_of_leak ADD CONSTRAINT <constraint_name>
+--   CHECK (cause IN (
+--     'spinalSurgery', 'cranialSurgery', 'lumbarPuncture',
+--     'epiduralAnaesthesia', 'spinalAnaesthesia', 'otherIatrogenicCause',
+--     'ehlersDanlosSyndrome', 'marfanSyndrome', 'otherHeritableDisorderOfConnectiveTissue',
+--     'idiopathicIntracranialHypertension', 'boneSpur',
+--     'cystTarlovPerineuralMeningeal', 'sihNoStructuralLesion',
+--     'trauma', 'other', 'unknown', 'preferNotToSay'
+--   ));
+-- COMMIT;

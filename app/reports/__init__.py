@@ -38,11 +38,14 @@ CAUSE_GROUPS: dict[str, frozenset[str]] = {
         "ehlersDanlosSyndrome", "marfanSyndrome",
         "otherHeritableDisorderOfConnectiveTissue",
     }),
-    "Spontaneous / Structural": frozenset({
-        "idiopathicIntracranialHypertension", "boneSpur",
-        "cystTarlovPerineuralMeningeal",
+    "Spontaneous / Structural (Spinal)": frozenset({
+        "boneSpur", "cystTarlovPerineuralMeningeal", "sihNoStructuralLesion",
+    }),
+    "IIH-Related / Cranial": frozenset({
+        "idiopathicIntracranialHypertension",
     }),
     "Traumatic": frozenset({"trauma"}),
+    "Other": frozenset({"other"}),
     "Unknown / Not disclosed": frozenset({"unknown", "preferNotToSay"}),
 }
 
@@ -56,8 +59,10 @@ CAUSE_TO_GROUP: dict[str, str] = {
 CAUSE_GROUP_ORDER: list[str] = [
     "Iatrogenic",
     "Connective Tissue Disorder",
-    "Spontaneous / Structural",
+    "Spontaneous / Structural (Spinal)",
+    "IIH-Related / Cranial",
     "Traumatic",
+    "Other",
     "Unknown / Not disclosed",
 ]
 

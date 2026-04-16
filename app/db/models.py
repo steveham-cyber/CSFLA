@@ -119,8 +119,8 @@ class CauseOfLeak(Base):
         "ehlersDanlosSyndrome", "marfanSyndrome",
         "otherHeritableDisorderOfConnectiveTissue",
         "idiopathicIntracranialHypertension", "boneSpur",
-        "cystTarlovPerineuralMeningeal", "trauma", "other", "unknown",
-        "preferNotToSay",
+        "cystTarlovPerineuralMeningeal", "sihNoStructuralLesion",
+        "trauma", "other", "unknown", "preferNotToSay",
     })
 
 
