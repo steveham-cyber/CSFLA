@@ -56,3 +56,101 @@ class TestQueryBuilderUnit:
             assert AVAILABLE_FIELDS[key]["dynamic"] is False
             assert isinstance(AVAILABLE_FIELDS[key]["values"], list)
             assert len(AVAILABLE_FIELDS[key]["values"]) > 0
+
+
+class TestCustomReportAuth:
+    """Auth enforcement — no DB needed."""
+
+    async def test_fields_requires_auth(self, anon_client) -> None:
+        response = await anon_client.get("/api/custom-reports/fields")
+        assert response.status_code == 401
+
+    async def test_list_requires_auth(self, anon_client) -> None:
+        response = await anon_client.get("/api/custom-reports/")
+        assert response.status_code == 401
+
+    async def test_run_requires_auth(self, anon_client) -> None:
+        response = await anon_client.post(
+            "/api/custom-reports/run",
+            json={"dimensions": ["country"]},
+        )
+        assert response.status_code == 401
+
+    async def test_create_requires_auth(self, anon_client) -> None:
+        response = await anon_client.post(
+            "/api/custom-reports/",
+            json={"name": "x", "definition": {"dimensions": ["country"]}},
+        )
+        assert response.status_code == 401
+
+
+class TestQueryDefinitionValidation:
+    """Pydantic validation — no DB needed (422 returned before DB is touched)."""
+
+    async def test_run_empty_dimensions_returns_422(
+        self, researcher_client
+    ) -> None:
+        response = await researcher_client.post(
+            "/api/custom-reports/run", json={"dimensions": []}
+        )
+        assert response.status_code == 422
+
+    async def test_run_unknown_dimension_returns_422(
+        self, researcher_client
+    ) -> None:
+        response = await researcher_client.post(
+            "/api/custom-reports/run", json={"dimensions": ["nonexistent_field"]}
+        )
+        assert response.status_code == 422
+
+    async def test_run_duplicate_dimensions_returns_422(
+        self, researcher_client
+    ) -> None:
+        response = await researcher_client.post(
+            "/api/custom-reports/run",
+            json={"dimensions": ["country", "country"]},
+        )
+        assert response.status_code == 422
+
+    async def test_run_seven_dimensions_returns_422(
+        self, researcher_client
+    ) -> None:
+        # Only 6 fields exist; any list longer than 6 is invalid
+        response = await researcher_client.post(
+            "/api/custom-reports/run",
+            json={
+                "dimensions": [
+                    "country", "gender", "age_band",
+                    "leak_type", "cause_group", "individual_cause",
+                    "country",   # 7th = duplicate triggers duplicate error
+                ]
+            },
+        )
+        assert response.status_code == 422
+
+    async def test_run_unknown_filter_field_returns_422(
+        self, researcher_client
+    ) -> None:
+        response = await researcher_client.post(
+            "/api/custom-reports/run",
+            json={"dimensions": ["country"], "filters": {"bogus": ["val"]}},
+        )
+        assert response.status_code == 422
+
+    async def test_run_empty_filter_values_returns_422(
+        self, researcher_client
+    ) -> None:
+        response = await researcher_client.post(
+            "/api/custom-reports/run",
+            json={"dimensions": ["country"], "filters": {"gender": []}},
+        )
+        assert response.status_code == 422
+
+    async def test_create_empty_name_returns_422(
+        self, researcher_client
+    ) -> None:
+        response = await researcher_client.post(
+            "/api/custom-reports/",
+            json={"name": "", "definition": {"dimensions": ["country"]}},
+        )
+        assert response.status_code == 422

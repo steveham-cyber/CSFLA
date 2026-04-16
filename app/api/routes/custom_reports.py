@@ -1,19 +1,14 @@
 """
-Custom report endpoints — CRUD and execution.
+Custom report endpoints — CRUD and query execution.
 
-All endpoints require researcher role (admin/researcher/viewer).
-Reports are user-scoped: each user can only access their own reports (by Entra ID OID).
+Reports are user-scoped by Entra ID OID.
+All mutations use POST (CORS allows GET/POST only).
 
-Uses POST for mutations (create, update, delete, run) to stay within the
-existing CORS allow_methods=["GET","POST"] configuration.
-
-Cipher security requirements implemented here:
-- OID-scoped access control on every read/update/delete/run endpoint
-- definition.blocks[].report_id validated against allowed set r1-r8
-- definition.blocks[].filters keys allowlisted via VALID_FILTER_KEYS
-- instance_id sanitised (bounded alphanumeric string)
-- Maximum 8 blocks per report enforced
-- name (max 100 chars) and description (max 500 chars) enforced via Pydantic
+Security:
+  - OID-scoped access: _get_own_report() enforces id AND created_by match
+  - QueryDefinition validates all field keys against VALID_FIELD_KEYS allowlist
+  - name max 100 chars, description max 500 chars (Pydantic)
+  - /fields and /run registered before /{report_id} to prevent path-param shadowing
 """
 from __future__ import annotations
 
@@ -31,68 +26,55 @@ from api.dependencies import require_researcher
 from auth.entra import CurrentUser
 from db.connection import get_db
 from db.models import CustomReport, CustomReportAudit
-from reports.blocks import BLOCKS, VALID_FILTER_KEYS, run_block
+from reports.query_builder import VALID_FIELD_KEYS, get_fields, run_query
 
 log = logging.getLogger(__name__)
 
 router = APIRouter()
 
-MAX_BLOCKS_PER_REPORT = 8
-MAX_NAME_LENGTH = 100
 
+# ── Pydantic models ───────────────────────────────────────────────────────────
 
-# ── Request / response models ─────────────────────────────────────────────────
+class QueryDefinition(BaseModel):
+    """Validated report definition: which fields to group by and filter on."""
 
-class BlockDefinition(BaseModel):
-    instance_id: str = Field(..., min_length=1, max_length=32, pattern=r'^[a-zA-Z0-9_-]+$')
-    report_id: str
-    title: Optional[str] = Field(default=None, max_length=100)
-    filters: dict[str, Optional[str | int]] = Field(default_factory=dict)
+    dimensions: list[str] = Field(..., min_length=1, max_length=6)
+    filters: dict[str, list[str]] = Field(default_factory=dict)
 
-    @field_validator('report_id')
+    @field_validator("dimensions")
     @classmethod
-    def validate_report_id(cls, v: str) -> str:
-        if v not in BLOCKS:
-            raise ValueError(f"Unknown report block: {v!r}")
+    def validate_dimensions(cls, v: list[str]) -> list[str]:
+        invalid = [d for d in v if d not in VALID_FIELD_KEYS]
+        if invalid:
+            raise ValueError(f"Unknown dimension fields: {invalid}")
+        if len(v) != len(set(v)):
+            raise ValueError("Duplicate dimensions are not allowed")
         return v
 
-    @field_validator('filters')
+    @field_validator("filters")
     @classmethod
-    def validate_filter_keys(cls, v: dict) -> dict:
-        unknown = set(v.keys()) - VALID_FILTER_KEYS
-        if unknown:
-            raise ValueError(f"Unknown filter keys: {unknown}")
-        return v
-
-
-class ReportDefinition(BaseModel):
-    blocks: list[BlockDefinition] = Field(..., min_length=1)
-
-    @field_validator('blocks')
-    @classmethod
-    def validate_blocks(cls, v: list[BlockDefinition]) -> list[BlockDefinition]:
-        if len(v) > MAX_BLOCKS_PER_REPORT:
-            raise ValueError(f"Maximum {MAX_BLOCKS_PER_REPORT} blocks per report")
-        ids = [b.instance_id for b in v]
-        if len(ids) != len(set(ids)):
-            raise ValueError("Block instance_ids must be unique within a report")
+    def validate_filters(cls, v: dict) -> dict:
+        invalid = [k for k in v if k not in VALID_FIELD_KEYS]
+        if invalid:
+            raise ValueError(f"Unknown filter fields: {invalid}")
+        for key, values in v.items():
+            if not values:
+                raise ValueError(
+                    f"Filter values for {key!r} must not be empty"
+                )
         return v
 
 
 class CreateReportRequest(BaseModel):
-    name: str = Field(..., min_length=1, max_length=MAX_NAME_LENGTH)
+    name: str = Field(..., min_length=1, max_length=100)
     description: Optional[str] = Field(default=None, max_length=500)
-    definition: ReportDefinition
+    definition: QueryDefinition
 
 
 class UpdateReportRequest(BaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=MAX_NAME_LENGTH)
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     description: Optional[str] = Field(default=None, max_length=500)
-    definition: Optional[ReportDefinition] = None
-
-
-class PreviewRequest(BaseModel):
-    definition: ReportDefinition
+    definition: Optional[QueryDefinition] = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -101,7 +83,7 @@ def _parse_report_id(report_id: str) -> uuid.UUID:
     try:
         return uuid.UUID(report_id)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found.")
+        raise HTTPException(status_code=404, detail="Report not found.")
 
 
 async def _get_own_report(
@@ -109,7 +91,11 @@ async def _get_own_report(
     user: CurrentUser,
     db: AsyncSession,
 ) -> CustomReport:
-    """Fetch a report and assert it belongs to this user. Raises 404 otherwise."""
+    """
+    Fetch a report and assert it belongs to this user.
+    Returns 404 for both missing reports and reports owned by other users
+    (no information leakage about existence).
+    """
     result = await db.execute(
         select(CustomReport).where(
             CustomReport.id == report_uuid,
@@ -118,7 +104,7 @@ async def _get_own_report(
     )
     report = result.scalar_one_or_none()
     if report is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found.")
+        raise HTTPException(status_code=404, detail="Report not found.")
     return report
 
 
@@ -129,34 +115,28 @@ async def _audit(
     performed_by: str,
     detail: dict | None = None,
 ) -> None:
-    entry = CustomReportAudit(
-        report_id=report_id,
-        action=action,
-        performed_by=performed_by,
-        performed_at=datetime.now(timezone.utc),
-        detail=detail,
+    db.add(
+        CustomReportAudit(
+            report_id=report_id,
+            action=action,
+            performed_by=performed_by,
+            performed_at=datetime.now(timezone.utc),
+            detail=detail,
+        )
     )
-    db.add(entry)
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
-# NOTE: /blocks and /preview are registered BEFORE /{report_id} to prevent
-# FastAPI treating the literal strings "blocks" and "preview" as path parameters.
+# NOTE: /fields and /run MUST be registered before /{report_id} so FastAPI
+# does not treat the literal strings "fields" and "run" as path parameters.
 
-@router.get("/blocks")
-async def list_blocks(user: CurrentUser = Depends(require_researcher)):
-    """Return the catalogue of available report blocks."""
-    return {
-        "blocks": [
-            {
-                "id": block_id,
-                "title": block["title"],
-                "description": block["description"],
-                "filters": block["filters"],
-            }
-            for block_id, block in BLOCKS.items()
-        ]
-    }
+@router.get("/fields")
+async def list_fields(
+    user: CurrentUser = Depends(require_researcher),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return all available fields with labels and allowed values."""
+    return {"fields": await get_fields(db)}
 
 
 @router.get("/")
@@ -177,7 +157,7 @@ async def list_custom_reports(
                 "id": str(r.id),
                 "name": r.name,
                 "description": r.description,
-                "block_count": len(r.definition.get("blocks", [])),
+                "dimension_count": len(r.definition.get("dimensions", [])),
                 "created_at": r.created_at.isoformat(),
                 "updated_at": r.updated_at.isoformat(),
             }
@@ -208,7 +188,7 @@ async def create_custom_report(
         report_id=report.id,
         action="create",
         performed_by=user.id,
-        detail={"name": report.name, "block_count": len(body.definition.blocks)},
+        detail={"name": report.name},
     )
     await db.commit()
     await db.refresh(report)
@@ -222,19 +202,14 @@ async def create_custom_report(
     }
 
 
-@router.post("/preview")
-async def preview_custom_report(
-    body: PreviewRequest,
+@router.post("/run")
+async def run_unsaved_report(
+    body: QueryDefinition,
     user: CurrentUser = Depends(require_researcher),
     db: AsyncSession = Depends(get_db),
 ):
-    """Execute a report definition without saving. Used for live preview in the builder."""
-    definition = body.definition.model_dump()
-    results = await _execute_definition(db, definition)
-    return {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "blocks": results,
-    }
+    """Execute a query definition without saving it."""
+    return await run_query(db, body.dimensions, body.filters)
 
 
 @router.get("/{report_id}")
@@ -262,9 +237,7 @@ async def delete_custom_report(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a custom report. Returns 404 if not owned by user."""
-    report_uuid = _parse_report_id(report_id)
-    report = await _get_own_report(report_uuid, user, db)
-
+    report = await _get_own_report(_parse_report_id(report_id), user, db)
     await _audit(
         db,
         report_id=None,
@@ -277,28 +250,24 @@ async def delete_custom_report(
 
 
 @router.post("/{report_id}/run")
-async def run_custom_report(
+async def run_saved_report(
     report_id: str,
     user: CurrentUser = Depends(require_researcher),
     db: AsyncSession = Depends(get_db),
 ):
-    """Execute all blocks in a saved report and return results keyed by instance_id."""
+    """Execute a saved report and write an audit row."""
     report = await _get_own_report(_parse_report_id(report_id), user, db)
-    results = await _execute_definition(db, report.definition)
+    defn = report.definition
+    result = await run_query(db, defn["dimensions"], defn.get("filters", {}))
     await _audit(
         db,
         report_id=report.id,
         action="run",
         performed_by=user.id,
-        detail={"block_count": len(report.definition.get("blocks", []))},
+        detail={"dimension_count": len(defn["dimensions"])},
     )
     await db.commit()
-    return {
-        "report_id": str(report.id),
-        "name": report.name,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "blocks": results,
-    }
+    return {"report_id": str(report.id), "name": report.name, **result}
 
 
 @router.post("/{report_id}")
@@ -310,7 +279,6 @@ async def update_custom_report(
 ):
     """Update name, description, or definition of an existing report."""
     report = await _get_own_report(_parse_report_id(report_id), user, db)
-
     if body.name is not None:
         report.name = body.name
     if body.description is not None:
@@ -318,7 +286,6 @@ async def update_custom_report(
     if body.definition is not None:
         report.definition = body.definition.model_dump()
     report.updated_at = datetime.now(timezone.utc)
-
     await _audit(
         db,
         report_id=report.id,
@@ -335,20 +302,3 @@ async def update_custom_report(
         "definition": report.definition,
         "updated_at": report.updated_at.isoformat(),
     }
-
-
-async def _execute_definition(db: AsyncSession, definition: dict) -> dict:
-    """
-    Run all blocks in a definition dict. Returns a dict keyed by instance_id.
-    Each value is {"ok": True, "data": {...}} or {"ok": False, "error": "..."}.
-    """
-    results: dict[str, dict] = {}
-    for block in definition.get("blocks", []):
-        instance_id = block["instance_id"]
-        try:
-            data = await run_block(db, block["report_id"], block.get("filters", {}))
-            results[instance_id] = {"ok": True, "data": data}
-        except Exception as exc:
-            log.error("Block %r execution failed: %s", block.get("report_id"), exc)
-            results[instance_id] = {"ok": False, "error": "Block execution failed."}
-    return results
