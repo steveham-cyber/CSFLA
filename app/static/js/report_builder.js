@@ -1,516 +1,464 @@
-/**
- * report_builder.js — Custom Report Builder
- *
- * Manages the palette, canvas (SortableJS), config modal, save, and run.
- * All API calls go to /api/custom-reports/*.
- *
- * State is held in `builderState`:
- *   blocks:             array of { instanceId, reportId, title, filters }
- *   catalogue:          array of block metadata from /api/custom-reports/blocks
- *   reportId:           null | string (UUID of the saved report being edited)
- *   editingInstanceId:  null | string (which block's config modal is open)
- */
+'use strict';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-const builderState = {
-  blocks: [],
-  catalogue: [],
-  reportId: null,
-  editingInstanceId: null,
+const S = {
+    reportId:     null,
+    reportName:   '',
+    dimensions:   [],
+    filters:      {},
+    catalogue:    [],
+    savedReports: [],
 };
 
-const FILTER_LABELS = {
-  country: 'Country',
-  gender: 'Gender',
-  age_band: 'Age band',
-  year_from: 'Year from',
-  year_to: 'Year to',
-  diagnostic_status: 'Diagnostic status',
-  cause_group: 'Cause group',
-  individual_cause: 'Individual cause',
-  leak_type: 'Leak type',
-  country_group: 'Country group',
-};
+// ── DOM refs ──────────────────────────────────────────────────────────────────
 
-// ── Bootstrap ─────────────────────────────────────────────────────────────────
+const ROOT       = document.getElementById('builder-root');
+const nameInput  = document.getElementById('report-name-input');
+const savedBar   = document.getElementById('saved-bar');
+const leftPanel  = document.getElementById('left-panel');
+const resultArea = document.getElementById('result-area');
 
-document.addEventListener('DOMContentLoaded', () => {
-  const root = document.getElementById('builder-root');
-  if (!root) return;
+// ── Security helper ───────────────────────────────────────────────────────────
 
-  const mode = root.dataset.mode;
-  const reportId = root.dataset.reportId || null;
-  builderState.reportId = reportId;
-
-  if (mode === 'list') {
-    builderInitList();
-  } else if (mode === 'new') {
-    builderInitNew();
-  } else if (mode === 'edit') {
-    builderInitEdit(reportId);
-  }
-});
-
-// ── List mode ─────────────────────────────────────────────────────────────────
-
-async function builderInitList() {
-  const listEl = document.getElementById('saved-reports-list');
-  try {
-    const resp = await fetch('/api/custom-reports/');
-    if (!resp.ok) throw new Error('Failed to load reports');
-    const data = await resp.json();
-    builderRenderList(listEl, data.reports);
-  } catch (err) {
-    listEl.innerHTML = `<p style="color:var(--color-danger); padding:var(--space-4);">Error loading reports: ${_esc(err.message)}</p>`;
-  }
+function _esc(s) {
+    return String(s)
+        .replace(/&/g,  '&amp;')
+        .replace(/</g,  '&lt;')
+        .replace(/>/g,  '&gt;')
+        .replace(/"/g,  '&quot;')
+        .replace(/'/g,  '&#39;');
 }
 
-function builderRenderList(container, reports) {
-  if (reports.length === 0) {
-    container.innerHTML = `
-      <p style="color:var(--color-text-muted); text-align:center; padding:var(--space-6);">
-        No custom reports yet. <a href="/reports/builder/new">Create your first report</a>.
-      </p>`;
-    return;
-  }
+// ── Catalogue helpers ─────────────────────────────────────────────────────────
 
-  const rows = reports.map(r => `
-    <div style="display:flex; align-items:center; justify-content:space-between; padding:var(--space-3) 0; border-bottom:1px solid var(--color-border);">
-      <div>
-        <a href="/reports/builder/${_esc(r.id)}" style="font-weight:600; text-decoration:none; color:var(--color-text);">${_esc(r.name)}</a>
-        ${r.description ? `<p style="font-size:var(--font-size-sm); color:var(--color-text-muted); margin:var(--space-1) 0 0;">${_esc(r.description)}</p>` : ''}
-        <p style="font-size:var(--font-size-sm); color:var(--color-text-muted); margin:var(--space-1) 0 0;">
-          ${_esc(String(r.block_count))} block${r.block_count !== 1 ? 's' : ''} · Last updated ${_esc(_fmtDate(r.updated_at))}
-        </p>
-      </div>
-      <div style="display:flex; gap:var(--space-2);">
-        <a href="/reports/builder/${_esc(r.id)}" class="btn btn-ghost" style="font-size:var(--font-size-sm);">Edit</a>
-        <button class="btn btn-ghost" style="font-size:var(--font-size-sm); color:var(--color-danger);"
-                data-delete-id="${_esc(r.id)}" data-delete-name="${_esc(r.name)}">Delete</button>
-      </div>
-    </div>
-  `).join('');
-
-  container.innerHTML = `<div style="padding:0 var(--space-4);">${rows}</div>`;
-
-  // Attach delete handlers via event listeners — never inline onclick with user data
-  container.querySelectorAll('[data-delete-id]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      builderDeleteReport(btn.dataset.deleteId, btn.dataset.deleteName);
-    });
-  });
+function fieldMeta(key) {
+    return S.catalogue.find(f => f.key === key) || { key, label: key, values: [] };
 }
 
-async function builderDeleteReport(reportId, name) {
-  if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
-  try {
-    const resp = await fetch(`/api/custom-reports/${reportId}/delete`, { method: 'POST' });
-    if (!resp.ok) throw new Error('Delete failed');
-    builderInitList();
-  } catch (err) {
-    alert(`Failed to delete: ${_esc(err.message)}`);
-  }
-}
+const ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th'];
 
-// ── Builder init ──────────────────────────────────────────────────────────────
+// ── Render: left panel ────────────────────────────────────────────────────────
 
-async function builderInitNew() {
-  await builderLoadCatalogue();
-  builderRenderPalette();
-  builderInitCanvas();
-}
+function renderLeft() {
+    const dimIndex = Object.fromEntries(S.dimensions.map((k, i) => [k, i]));
 
-async function builderInitEdit(reportId) {
-  await builderLoadCatalogue();
-  try {
-    const resp = await fetch(`/api/custom-reports/${reportId}`);
-    if (!resp.ok) throw new Error('Report not found');
-    const data = await resp.json();
+    let html = '<div style="margin-bottom:var(--space-5)">';
+    html += '<div style="font-size:11px;font-weight:700;color:var(--color-text-muted);'
+          + 'text-transform:uppercase;letter-spacing:1px;margin-bottom:var(--space-2)">Group By</div>';
 
-    document.getElementById('report-name').value = data.name;
-    document.getElementById('report-description').value = data.description || '';
-
-    builderState.blocks = (data.definition.blocks || []).map(b => ({
-      instanceId: b.instance_id,
-      reportId: b.report_id,
-      title: b.title || '',
-      filters: b.filters || {},
-    }));
-  } catch (err) {
-    alert(`Failed to load report: ${_esc(err.message)}`);
-    return;
-  }
-  builderRenderPalette();
-  builderInitCanvas();
-  builderRenderCanvas();
-  builderUpdateSaveState();
-}
-
-async function builderLoadCatalogue() {
-  const resp = await fetch('/api/custom-reports/blocks');
-  const data = await resp.json();
-  builderState.catalogue = data.blocks;
-}
-
-// ── Palette ───────────────────────────────────────────────────────────────────
-
-function builderRenderPalette() {
-  const palette = document.getElementById('block-palette');
-  if (!palette) return;
-
-  palette.innerHTML = builderState.catalogue.map(block => `
-    <div class="palette-block"
-         draggable="true"
-         data-report-id="${_esc(block.id)}"
-         style="background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-sm); padding:var(--space-3); cursor:grab; user-select:none;"
-         ondragstart="builderPaletteDragStart(event, '${_esc(block.id)}')">
-      <div style="font-weight:600; font-size:var(--font-size-sm);">${_esc(block.title)}</div>
-      <div style="font-size:var(--font-size-xs); color:var(--color-text-muted); margin-top:var(--space-1);">${_esc(block.description)}</div>
-    </div>
-  `).join('');
-}
-
-function builderPaletteDragStart(event, reportId) {
-  event.dataTransfer.setData('text/plain', reportId);
-  event.dataTransfer.effectAllowed = 'copy';
-}
-
-// ── Canvas ────────────────────────────────────────────────────────────────────
-
-function builderInitCanvas() {
-  const canvas = document.getElementById('block-canvas');
-  if (!canvas) return;
-
-  canvas.addEventListener('dragover', e => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-    canvas.style.borderColor = 'var(--color-primary)';
-  });
-
-  canvas.addEventListener('dragleave', () => {
-    canvas.style.borderColor = 'var(--color-border)';
-  });
-
-  canvas.addEventListener('drop', e => {
-    e.preventDefault();
-    canvas.style.borderColor = 'var(--color-border)';
-    const reportId = e.dataTransfer.getData('text/plain');
-    if (!reportId) return;
-    if (builderState.blocks.length >= 8) {
-      alert('Maximum 8 blocks per report.');
-      return;
+    for (const field of S.catalogue) {
+        const isActive = field.key in dimIndex;
+        const isIndividualCause = field.key === 'individual_cause';
+        const ordinal = isActive ? ORDINALS[dimIndex[field.key]] : null;
+        html += `<div class="dim-pill" data-field="${_esc(field.key)}" style="
+            display:flex;align-items:center;justify-content:space-between;
+            padding:8px 10px;border-radius:var(--radius-md);
+            border:1.5px solid ${isActive ? 'var(--color-primary)' : 'var(--color-border)'};
+            margin-bottom:6px;cursor:pointer;
+            font-size:var(--font-size-sm);font-weight:var(--font-weight-medium);
+            color:${isActive ? '#fff' : 'var(--color-primary)'};
+            background:${isActive ? 'var(--color-primary)' : 'var(--color-bg-white)'};
+            opacity:${!isActive && isIndividualCause ? '0.65' : '1'};
+        ">
+            <span>${_esc(field.label)}</span>
+            ${isActive
+                ? `<span style="font-size:11px;font-weight:700;background:rgba(255,255,255,0.25);
+                     color:#fff;border-radius:99px;padding:1px 7px;">${ordinal}</span>`
+                : `<span style="font-size:11px;color:var(--color-text-muted)">+ add</span>`
+            }
+        </div>`;
     }
-    builderAddBlock(reportId);
-  });
+    html += '</div>';
 
-  Sortable.create(canvas, {
-    animation: 150,
-    handle: '.drag-handle',
-    filter: '.canvas-empty-hint',
-    onEnd: () => {
-      const newOrder = [];
-      canvas.querySelectorAll('[data-instance-id]').forEach(el => {
-        const found = builderState.blocks.find(b => b.instanceId === el.dataset.instanceId);
-        if (found) newOrder.push(found);
-      });
-      builderState.blocks = newOrder;
-    },
-  });
-}
+    const filterFields = [...new Set([...S.dimensions, ...Object.keys(S.filters)])];
 
-function builderAddBlock(reportId) {
-  const instanceId = 'b' + Date.now();
-  builderState.blocks.push({ instanceId, reportId, title: '', filters: {} });
-  builderRenderCanvas();
-  builderUpdateSaveState();
-}
+    html += '<div>';
+    html += '<div style="font-size:11px;font-weight:700;color:var(--color-text-muted);'
+          + 'text-transform:uppercase;letter-spacing:1px;margin-bottom:var(--space-2)">Filters</div>';
 
-function builderRemoveBlock(instanceId) {
-  builderState.blocks = builderState.blocks.filter(b => b.instanceId !== instanceId);
-  builderRenderCanvas();
-  builderUpdateSaveState();
-}
+    for (const key of filterFields) {
+        const field    = fieldMeta(key);
+        const isFilterOnly = !S.dimensions.includes(key);
+        const active   = S.filters[key] || [];
+        const available = field.values.filter(v => !active.includes(v));
 
-function builderRenderCanvas() {
-  const canvas = document.getElementById('block-canvas');
-  const badge = document.getElementById('block-count-badge');
-  if (!canvas) return;
+        html += `<div style="margin-bottom:var(--space-3)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                <span style="font-size:12px;font-weight:var(--font-weight-medium);color:var(--color-primary)">
+                    ${_esc(field.label)}
+                </span>
+                ${isFilterOnly
+                    ? `<button class="remove-filter-field" data-field="${_esc(key)}"
+                         style="background:none;border:none;cursor:pointer;
+                                color:var(--color-text-muted);font-size:16px;line-height:1;padding:0;">×</button>`
+                    : ''}
+            </div>`;
 
-  const count = builderState.blocks.length;
-  if (badge) badge.textContent = `(${count} / 8 blocks)`;
+        if (available.length > 0) {
+            html += `<select class="filter-add-select" data-field="${_esc(key)}"
+                style="width:100%;border:1px solid var(--color-border);
+                       border-radius:var(--radius-md);padding:6px var(--space-2);
+                       font-size:12px;font-family:inherit;
+                       background:var(--color-bg-card);color:var(--color-text-body);">
+                <option value="">Add value…</option>`;
+            for (const v of available) {
+                html += `<option value="${_esc(v)}">${_esc(v)}</option>`;
+            }
+            html += `</select>`;
+        }
 
-  if (count === 0) {
-    canvas.innerHTML = `
-      <p id="canvas-empty-hint" class="canvas-empty-hint"
-         style="color:var(--color-text-muted); font-size:var(--font-size-sm); text-align:center; padding:var(--space-6) 0; margin:0;">
-        Drag blocks from the palette to build your report
-      </p>`;
-    return;
-  }
-
-  canvas.innerHTML = builderState.blocks.map(block => {
-    const meta = builderState.catalogue.find(b => b.id === block.reportId);
-    const displayTitle = block.title || (meta ? meta.title : block.reportId);
-    const filterSummary = _filterSummary(block.filters);
-
-    return `
-      <div class="canvas-block" data-instance-id="${_esc(block.instanceId)}"
-           style="background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-sm); padding:var(--space-3); display:flex; align-items:center; gap:var(--space-3);">
-        <span class="drag-handle" style="color:var(--color-text-muted); cursor:grab; font-size:18px; flex-shrink:0;" title="Drag to reorder">⠿</span>
-        <div style="flex:1; min-width:0;">
-          <div style="font-weight:600; font-size:var(--font-size-sm);">${_esc(displayTitle)}</div>
-          <div style="font-size:var(--font-size-xs); color:var(--color-text-muted); margin-top:2px;">
-            ${filterSummary || '<em>No filters applied</em>'}
-          </div>
-        </div>
-        <button class="btn btn-ghost" style="font-size:var(--font-size-sm); flex-shrink:0;"
-                onclick="builderOpenConfigModal('${_esc(block.instanceId)}')" type="button">⚙ Configure</button>
-        <button class="btn btn-ghost" style="font-size:var(--font-size-sm); color:var(--color-danger); flex-shrink:0;"
-                onclick="builderRemoveBlock('${_esc(block.instanceId)}')" type="button">✕</button>
-      </div>`;
-  }).join('');
-}
-
-// ── Config modal ──────────────────────────────────────────────────────────────
-
-function builderOpenConfigModal(instanceId) {
-  const block = builderState.blocks.find(b => b.instanceId === instanceId);
-  if (!block) return;
-
-  const meta = builderState.catalogue.find(b => b.id === block.reportId);
-  builderState.editingInstanceId = instanceId;
-
-  document.getElementById('config-modal-title').textContent =
-    'Configure: ' + (meta ? meta.title : block.reportId);
-
-  const body = document.getElementById('config-modal-body');
-  const availableFilters = meta ? meta.filters : [];
-
-  if (availableFilters.length === 0) {
-    body.innerHTML = `<p style="color:var(--color-text-muted); font-size:var(--font-size-sm);">This block has no configurable filters.</p>`;
-  } else {
-    body.innerHTML = `
-      <div style="margin-bottom:var(--space-3);">
-        <label style="display:block; font-size:var(--font-size-sm); font-weight:600; margin-bottom:var(--space-1);">Custom title (optional)</label>
-        <input type="text" id="cfg-title" class="input" style="width:100%;" maxlength="100"
-               value="${_esc(block.title || '')}" placeholder="Leave blank to use default">
-      </div>
-      ${availableFilters.map(key => `
-        <div style="margin-bottom:var(--space-3);">
-          <label for="cfg-${_esc(key)}" style="display:block; font-size:var(--font-size-sm); font-weight:600; margin-bottom:var(--space-1);">
-            ${_esc(FILTER_LABELS[key] || key)}
-          </label>
-          <input type="${key.startsWith('year') ? 'number' : 'text'}"
-                 id="cfg-${_esc(key)}" class="input" style="width:100%;"
-                 value="${_esc(String(block.filters[key] ?? ''))}"
-                 placeholder="Leave blank for no filter"
-                 ${key.startsWith('year') ? 'min="2000" max="2100"' : ''}>
-        </div>
-      `).join('')}
-    `;
-  }
-
-  const modal = document.getElementById('config-modal');
-  modal.style.display = 'flex';
-}
-
-function builderCloseConfigModal() {
-  document.getElementById('config-modal').style.display = 'none';
-  builderState.editingInstanceId = null;
-}
-
-function builderSaveBlockConfig() {
-  const instanceId = builderState.editingInstanceId;
-  if (!instanceId) return;
-
-  const block = builderState.blocks.find(b => b.instanceId === instanceId);
-  const meta = builderState.catalogue.find(b => b.id === block.reportId);
-  const availableFilters = meta ? meta.filters : [];
-
-  const titleInput = document.getElementById('cfg-title');
-  if (titleInput) block.title = titleInput.value.trim();
-
-  block.filters = {};
-  availableFilters.forEach(key => {
-    const el = document.getElementById(`cfg-${key}`);
-    if (!el) return;
-    const val = el.value.trim();
-    if (!val) return;
-    block.filters[key] = key.startsWith('year') ? parseInt(val, 10) : val;
-  });
-
-  builderCloseConfigModal();
-  builderRenderCanvas();
-}
-
-// ── Save / Run ────────────────────────────────────────────────────────────────
-
-function builderUpdateSaveState() {
-  const nameEl = document.getElementById('report-name');
-  const saveBtn = document.getElementById('btn-save');
-  const runBtn = document.getElementById('btn-run');
-  if (!saveBtn || !runBtn) return;
-
-  const hasName = nameEl && nameEl.value.trim().length > 0;
-  const hasBlocks = builderState.blocks.length > 0;
-  saveBtn.disabled = !(hasName && hasBlocks);
-  runBtn.disabled = !hasBlocks;
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const saveBtn = document.getElementById('btn-save');
-  const runBtn = document.getElementById('btn-run');
-
-  if (saveBtn) {
-    saveBtn.addEventListener('click', async () => {
-      saveBtn.disabled = true;
-      saveBtn.textContent = 'Saving\u2026';
-      try {
-        await builderSaveReport();
-        saveBtn.textContent = 'Saved \u2713';
-        setTimeout(() => { saveBtn.textContent = 'Save'; builderUpdateSaveState(); }, 2000);
-      } catch (err) {
-        alert(`Save failed: ${_esc(err.message)}`);
-        saveBtn.textContent = 'Save';
-        builderUpdateSaveState();
-      }
-    });
-  }
-
-  if (runBtn) {
-    runBtn.addEventListener('click', async () => {
-      runBtn.disabled = true;
-      runBtn.textContent = 'Running\u2026';
-      try {
-        await builderRunReport();
-      } catch (err) {
-        alert(`Run failed: ${_esc(err.message)}`);
-      } finally {
-        runBtn.textContent = 'Run';
-        builderUpdateSaveState();
-      }
-    });
-  }
-});
-
-function _buildDefinition() {
-  return {
-    blocks: builderState.blocks.map(b => ({
-      instance_id: b.instanceId,
-      report_id: b.reportId,
-      title: b.title || null,
-      filters: b.filters,
-    })),
-  };
-}
-
-async function builderSaveReport() {
-  const name = document.getElementById('report-name').value.trim();
-  const description = document.getElementById('report-description').value.trim();
-  const definition = _buildDefinition();
-  const body = { name, description: description || null, definition };
-  const isEdit = !!builderState.reportId;
-  const url = isEdit
-    ? `/api/custom-reports/${builderState.reportId}`
-    : '/api/custom-reports/';
-
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    throw new Error(err.detail || `HTTP ${resp.status}`);
-  }
-
-  const data = await resp.json();
-  if (!isEdit) {
-    window.history.replaceState({}, '', `/reports/builder/${data.id}`);
-    builderState.reportId = data.id;
-    document.getElementById('builder-root').dataset.reportId = data.id;
-  }
-}
-
-async function builderRunReport() {
-  const definition = _buildDefinition();
-  const resultsArea = document.getElementById('results-area');
-  const resultsContent = document.getElementById('results-content');
-
-  resultsContent.innerHTML = `<div class="loading-state" style="text-align:center; padding:var(--space-6); color:var(--color-text-muted);">Running report\u2026</div>`;
-  resultsArea.style.display = 'block';
-  resultsArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-  const url = builderState.reportId
-    ? `/api/custom-reports/${builderState.reportId}/run`
-    : '/api/custom-reports/preview';
-
-  const fetchBody = builderState.reportId ? undefined : JSON.stringify({ definition });
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: fetchBody ? { 'Content-Type': 'application/json' } : {},
-    body: fetchBody,
-  });
-
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    throw new Error(err.detail || `HTTP ${resp.status}`);
-  }
-
-  const data = await resp.json();
-  builderRenderResults(data);
-}
-
-function builderRenderResults(data) {
-  const content = document.getElementById('results-content');
-  const blockResults = data.blocks || {};
-
-  const sections = builderState.blocks.map(block => {
-    const meta = builderState.catalogue.find(b => b.id === block.reportId);
-    const title = block.title || (meta ? meta.title : block.reportId);
-    const result = blockResults[block.instanceId];
-
-    if (!result) {
-      return `<div class="card" style="margin-bottom:var(--space-4);">
-        <h4>${_esc(title)}</h4>
-        <p style="color:var(--color-text-muted);">No result returned.</p>
-      </div>`;
+        if (active.length > 0) {
+            html += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;">`;
+            for (const v of active) {
+                html += `<span style="background:var(--color-bg-shape);color:var(--color-primary);
+                    font-size:11px;font-weight:var(--font-weight-medium);border-radius:99px;
+                    padding:2px 8px;display:inline-flex;align-items:center;gap:4px;">
+                    ${_esc(v)}
+                    <button class="remove-filter-val"
+                        data-field="${_esc(key)}" data-value="${_esc(v)}"
+                        style="background:none;border:none;cursor:pointer;
+                               color:var(--color-text-muted);font-size:13px;line-height:1;padding:0;">×</button>
+                </span>`;
+            }
+            html += `</div>`;
+        }
+        html += `</div>`;
     }
-    if (!result.ok) {
-      return `<div class="card" style="margin-bottom:var(--space-4);">
-        <h4>${_esc(title)}</h4>
-        <p style="color:var(--color-danger);">Error: ${_esc(result.error)}</p>
-      </div>`;
+
+    const nonFilterFields = S.catalogue.filter(f => !filterFields.includes(f.key));
+    if (nonFilterFields.length > 0) {
+        html += `<select id="add-filter-field"
+            style="width:100%;border:1px solid var(--color-border);
+                   border-radius:var(--radius-md);padding:6px var(--space-2);
+                   font-size:12px;font-family:inherit;
+                   background:var(--color-bg-white);color:var(--color-text-muted);
+                   margin-top:var(--space-2);">
+            <option value="">Filter on another field…</option>`;
+        for (const f of nonFilterFields) {
+            html += `<option value="${_esc(f.key)}">${_esc(f.label)}</option>`;
+        }
+        html += `</select>`;
     }
-    return `<div class="card" style="margin-bottom:var(--space-4);">
-      <h4>${_esc(title)}</h4>
-      <pre style="font-size:var(--font-size-xs); overflow-x:auto; background:var(--color-bg); padding:var(--space-3); border-radius:var(--radius-sm); color:var(--color-text);">${_esc(JSON.stringify(result.data, null, 2))}</pre>
-    </div>`;
-  });
 
-  content.innerHTML = sections.join('');
+    html += '</div>';
+    leftPanel.innerHTML = html;
+    _attachLeftEvents();
 }
 
-// ── Utilities ─────────────────────────────────────────────────────────────────
+function _attachLeftEvents() {
+    leftPanel.querySelectorAll('.dim-pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+            const key = pill.dataset.field;
+            if (S.dimensions.includes(key)) {
+                S.dimensions = S.dimensions.filter(k => k !== key);
+                delete S.filters[key];
+            } else if (S.dimensions.length < 6) {
+                S.dimensions.push(key);
+            }
+            renderLeft();
+        });
+    });
 
-function _esc(str) {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    leftPanel.querySelectorAll('.filter-add-select').forEach(sel => {
+        sel.addEventListener('change', () => {
+            const key = sel.dataset.field;
+            const val = sel.value;
+            if (!val) return;
+            if (!S.filters[key]) S.filters[key] = [];
+            if (!S.filters[key].includes(val)) S.filters[key].push(val);
+            renderLeft();
+        });
+    });
+
+    leftPanel.querySelectorAll('.remove-filter-val').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            const key = btn.dataset.field;
+            const val = btn.dataset.value;
+            S.filters[key] = (S.filters[key] || []).filter(v => v !== val);
+            if (S.filters[key].length === 0) delete S.filters[key];
+            renderLeft();
+        });
+    });
+
+    leftPanel.querySelectorAll('.remove-filter-field').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            delete S.filters[btn.dataset.field];
+            renderLeft();
+        });
+    });
+
+    const addSel = document.getElementById('add-filter-field');
+    if (addSel) {
+        addSel.addEventListener('change', () => {
+            const key = addSel.value;
+            if (!key) return;
+            if (!S.filters[key]) S.filters[key] = [];
+            renderLeft();
+        });
+    }
 }
 
-function _filterSummary(filters) {
-  const parts = Object.entries(filters)
-    .filter(([, v]) => v !== null && v !== undefined && v !== '')
-    .map(([k, v]) => `${_esc(FILTER_LABELS[k] || k)}: ${_esc(String(v))}`);
-  return parts.join(' \u00b7 ');
+// ── Render: saved bar ─────────────────────────────────────────────────────────
+
+function renderSavedBar() {
+    savedBar.querySelectorAll('button.saved-chip').forEach(c => c.remove());
+
+    for (const r of S.savedReports) {
+        const chip = document.createElement('button');
+        chip.className = 'saved-chip';
+        chip.textContent = r.name;
+        chip.dataset.id  = r.id;
+        const isActive = r.id === S.reportId;
+        chip.style.cssText = `
+            background:${isActive ? 'var(--color-primary)' : 'var(--color-bg-white)'};
+            color:${isActive ? '#fff' : 'var(--color-primary)'};
+            border:1px solid ${isActive ? 'var(--color-primary)' : 'var(--color-border)'};
+            border-radius:99px;padding:3px 12px;font-size:12px;
+            font-family:inherit;font-weight:var(--font-weight-medium);
+            cursor:pointer;white-space:nowrap;
+        `;
+        chip.addEventListener('click', () => loadReport(r.id));
+        savedBar.appendChild(chip);
+    }
 }
 
-function _fmtDate(iso) {
-  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+// ── Render: results ───────────────────────────────────────────────────────────
+
+function renderEmptyResult() {
+    resultArea.innerHTML = `
+        <div style="text-align:center;padding:64px var(--space-6);color:var(--color-text-muted);">
+            <div style="font-size:32px;margin-bottom:var(--space-3);">&#8862;</div>
+            <p style="font-size:var(--font-size-sm);">Select fields and press Run</p>
+        </div>`;
 }
+
+function renderResult(result) {
+    let html = `
+        <div style="display:flex;align-items:center;justify-content:space-between;
+                    margin-bottom:var(--space-3);">
+            <span style="font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);
+                         color:var(--color-primary);">Results</span>
+            <span style="font-size:var(--font-size-xs);color:var(--color-text-muted);">
+                ${result.total_shown.toLocaleString()} members shown
+            </span>
+        </div>`;
+
+    if (result.suppressed_count > 0) {
+        const n = result.suppressed_count;
+        html += `
+            <div style="background:#FFF8E8;border:1px solid var(--color-warning);
+                        border-radius:var(--radius-md);padding:10px var(--space-4);
+                        font-size:var(--font-size-xs);color:var(--color-text-body);
+                        margin-bottom:var(--space-3);display:flex;
+                        align-items:flex-start;gap:var(--space-2);">
+                <span>&#9888;</span>
+                <span><strong>${n} combination${n === 1 ? '' : 's'} hidden</strong>
+                    — fewer than 10 members each. These are not shown to protect member privacy.</span>
+            </div>`;
+    }
+
+    if (result.rows.length === 0) {
+        html += `
+            <div style="text-align:center;padding:var(--space-7) var(--space-6);
+                        color:var(--color-text-muted);">
+                <p style="font-size:var(--font-size-sm);">
+                    No combinations with 10 or more members match the current filters.
+                </p>
+            </div>`;
+    } else {
+        html += `<div style="background:var(--color-bg-white);border:1px solid var(--color-border);
+                              border-radius:var(--radius-md);overflow:hidden;
+                              box-shadow:var(--shadow-card);">
+            <table style="width:100%;border-collapse:collapse;">
+                <thead><tr style="background:var(--color-bg-card);">`;
+
+        for (const col of result.columns) {
+            html += `<th style="padding:10px var(--space-4);font-size:11px;font-weight:700;
+                text-transform:uppercase;letter-spacing:0.8px;color:var(--color-primary);
+                text-align:left;border-bottom:1px solid var(--color-border);">
+                ${_esc(fieldMeta(col).label)}</th>`;
+        }
+        html += `<th style="padding:10px var(--space-4);font-size:11px;font-weight:700;
+            text-transform:uppercase;letter-spacing:0.8px;color:var(--color-primary);
+            text-align:right;border-bottom:1px solid var(--color-border);">Members</th>
+                </tr></thead><tbody>`;
+
+        for (const row of result.rows) {
+            html += `<tr style="border-bottom:1px solid var(--color-border);">`;
+            for (const col of result.columns) {
+                html += `<td style="padding:9px var(--space-4);font-size:var(--font-size-sm);
+                    color:var(--color-text-body);">${_esc(row[col] ?? '—')}</td>`;
+            }
+            html += `<td style="padding:9px var(--space-4);font-size:var(--font-size-sm);
+                font-weight:var(--font-weight-bold);color:var(--color-primary);
+                text-align:right;">${row.member_count.toLocaleString()}</td>
+            </tr>`;
+        }
+        html += `</tbody></table></div>`;
+    }
+
+    resultArea.innerHTML = html;
+}
+
+// ── API helpers ───────────────────────────────────────────────────────────────
+
+async function apiFetch(url, opts = {}) {
+    const res = await fetch(url, {
+        headers: { 'Content-Type': 'application/json', ...opts.headers },
+        ...opts,
+    });
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || `HTTP ${res.status}`);
+    }
+    if (res.status === 204) return null;
+    return res.json();
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+
+async function loadCatalogue() {
+    const data = await apiFetch('/api/custom-reports/fields');
+    S.catalogue = data.fields;
+}
+
+async function loadSavedReports() {
+    const data = await apiFetch('/api/custom-reports/');
+    S.savedReports = data.reports;
+    renderSavedBar();
+}
+
+async function loadReport(id) {
+    const data = await apiFetch(`/api/custom-reports/${id}`);
+    S.reportId   = data.id;
+    S.reportName = data.name;
+    S.dimensions = data.definition.dimensions;
+    S.filters    = data.definition.filters || {};
+    nameInput.value = S.reportName;
+    history.replaceState(null, '', `/reports/builder/${id}`);
+    renderLeft();
+    renderSavedBar();
+    renderEmptyResult();
+}
+
+function resetState() {
+    S.reportId   = null;
+    S.reportName = '';
+    S.dimensions = [];
+    S.filters    = {};
+    nameInput.value = '';
+    history.replaceState(null, '', '/reports/builder/new');
+    renderLeft();
+    renderSavedBar();
+    renderEmptyResult();
+}
+
+async function saveReport() {
+    const name = nameInput.value.trim();
+    if (!name) {
+        nameInput.focus();
+        nameInput.style.borderColor = 'var(--color-error)';
+        setTimeout(() => { nameInput.style.borderColor = ''; }, 2000);
+        return;
+    }
+    if (S.dimensions.length === 0) {
+        alert('Please select at least one field to group by.');
+        return;
+    }
+    const body = {
+        name,
+        definition: { dimensions: S.dimensions, filters: S.filters },
+    };
+    try {
+        let data;
+        if (S.reportId) {
+            data = await apiFetch(`/api/custom-reports/${S.reportId}`, {
+                method: 'POST',
+                body: JSON.stringify(body),
+            });
+        } else {
+            data = await apiFetch('/api/custom-reports/', {
+                method: 'POST',
+                body: JSON.stringify(body),
+            });
+            S.reportId = data.id;
+            history.replaceState(null, '', `/reports/builder/${S.reportId}`);
+        }
+        S.reportName = data.name;
+        await loadSavedReports();
+    } catch (err) {
+        alert(`Save failed: ${err.message}`);
+    }
+}
+
+async function runReport() {
+    if (S.dimensions.length === 0) {
+        alert('Please select at least one field to group by.');
+        return;
+    }
+    const btnRun = document.getElementById('btn-run');
+    btnRun.disabled  = true;
+    btnRun.textContent = 'Running…';
+    try {
+        let result;
+        if (S.reportId) {
+            result = await apiFetch(`/api/custom-reports/${S.reportId}/run`, {
+                method: 'POST',
+            });
+        } else {
+            result = await apiFetch('/api/custom-reports/run', {
+                method: 'POST',
+                body: JSON.stringify({
+                    dimensions: S.dimensions,
+                    filters: S.filters,
+                }),
+            });
+        }
+        renderResult(result);
+    } catch (err) {
+        resultArea.innerHTML = `
+            <div style="color:var(--color-error);padding:var(--space-4);">
+                Error: ${_esc(err.message)}
+            </div>`;
+    } finally {
+        btnRun.disabled = false;
+        btnRun.textContent = '▶ Run';
+    }
+}
+
+// ── Initialisation ────────────────────────────────────────────────────────────
+
+async function init() {
+    try {
+        await loadCatalogue();
+        await loadSavedReports();
+    } catch (err) {
+        leftPanel.innerHTML = `
+            <div style="color:var(--color-error);font-size:var(--font-size-sm);
+                        padding:var(--space-4);">
+                Failed to load fields: ${_esc(err.message)}
+            </div>`;
+        return;
+    }
+
+    const initialReportId = ROOT.dataset.reportId;
+    if (initialReportId) {
+        try {
+            await loadReport(initialReportId);
+        } catch {
+            resetState();
+        }
+    } else {
+        renderLeft();
+        renderEmptyResult();
+    }
+
+    document.getElementById('btn-new').addEventListener('click', resetState);
+    document.getElementById('btn-save').addEventListener('click', saveReport);
+    document.getElementById('btn-run').addEventListener('click', runReport);
+}
+
+document.addEventListener('DOMContentLoaded', init);
