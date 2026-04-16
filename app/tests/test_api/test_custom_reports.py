@@ -177,3 +177,197 @@ class TestUIRoutes:
     ) -> None:
         response = await researcher_client.get("/reports/builder")
         assert response.status_code == 200
+
+
+class TestFieldsEndpoint:
+    """DB-dependent: queries distinct values for dynamic fields."""
+
+    async def test_fields_returns_six_fields(self, researcher_client) -> None:
+        response = await researcher_client.get("/api/custom-reports/fields")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["fields"]) == 6
+
+    async def test_field_keys_in_correct_order(self, researcher_client) -> None:
+        response = await researcher_client.get("/api/custom-reports/fields")
+        keys = [f["key"] for f in response.json()["fields"]]
+        assert keys == [
+            "country", "gender", "age_band",
+            "leak_type", "cause_group", "individual_cause",
+        ]
+
+    async def test_each_field_has_key_label_values(
+        self, researcher_client
+    ) -> None:
+        response = await researcher_client.get("/api/custom-reports/fields")
+        for field in response.json()["fields"]:
+            assert "key" in field
+            assert "label" in field
+            assert isinstance(field["values"], list)
+
+    async def test_leak_type_enum_values(self, researcher_client) -> None:
+        response = await researcher_client.get("/api/custom-reports/fields")
+        lt = next(
+            f for f in response.json()["fields"] if f["key"] == "leak_type"
+        )
+        assert set(lt["values"]) == {
+            "spinal", "cranial", "spinalAndCranial", "unknown"
+        }
+
+
+class TestRunEndpoint:
+    """DB-dependent: exercises the query builder end-to-end."""
+
+    async def test_run_returns_correct_shape(
+        self, researcher_client
+    ) -> None:
+        response = await researcher_client.post(
+            "/api/custom-reports/run",
+            json={"dimensions": ["country"]},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["columns"] == ["country"]
+        assert "rows" in data
+        assert "total_shown" in data
+        assert "suppressed_count" in data
+        assert isinstance(data["suppressed_count"], int)
+
+    async def test_run_result_rows_respect_k10(
+        self, researcher_client
+    ) -> None:
+        """All returned rows must have member_count >= 10."""
+        response = await researcher_client.post(
+            "/api/custom-reports/run",
+            json={"dimensions": ["country"]},
+        )
+        for row in response.json()["rows"]:
+            assert row["member_count"] >= 10
+
+    async def test_run_with_filter_narrows_results(
+        self, researcher_client
+    ) -> None:
+        """Running with a country filter must only return rows for that country."""
+        full = await researcher_client.post(
+            "/api/custom-reports/run",
+            json={"dimensions": ["country", "gender"]},
+        )
+        rows = full.json()["rows"]
+        if not rows:
+            return  # no data in test DB — skip
+        first_country = rows[0]["country"]
+        filtered = await researcher_client.post(
+            "/api/custom-reports/run",
+            json={
+                "dimensions": ["country", "gender"],
+                "filters": {"country": [first_country]},
+            },
+        )
+        for row in filtered.json()["rows"]:
+            assert row["country"] == first_country
+
+
+class TestCustomReportCRUD:
+    """DB-dependent: full CRUD lifecycle."""
+
+    _defn = {"dimensions": ["country", "gender"]}
+
+    async def test_create_returns_201(self, researcher_client) -> None:
+        response = await researcher_client.post(
+            "/api/custom-reports/",
+            json={"name": "Test Report", "definition": self._defn},
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["name"] == "Test Report"
+        assert "id" in data
+        assert data["definition"]["dimensions"] == ["country", "gender"]
+
+    async def test_list_returns_own_reports_only(
+        self, researcher_client, admin_client
+    ) -> None:
+        await researcher_client.post(
+            "/api/custom-reports/",
+            json={"name": "Researcher Report", "definition": self._defn},
+        )
+        admin_list = await admin_client.get("/api/custom-reports/")
+        names = [r["name"] for r in admin_list.json()["reports"]]
+        assert "Researcher Report" not in names
+
+    async def test_get_own_report_returns_200(
+        self, researcher_client
+    ) -> None:
+        create = await researcher_client.post(
+            "/api/custom-reports/",
+            json={"name": "My Report", "definition": self._defn},
+        )
+        report_id = create.json()["id"]
+        get = await researcher_client.get(f"/api/custom-reports/{report_id}")
+        assert get.status_code == 200
+        assert get.json()["name"] == "My Report"
+
+    async def test_get_other_users_report_returns_404(
+        self, researcher_client, admin_client
+    ) -> None:
+        create = await admin_client.post(
+            "/api/custom-reports/",
+            json={"name": "Admin Report", "definition": self._defn},
+        )
+        report_id = create.json()["id"]
+        get = await researcher_client.get(f"/api/custom-reports/{report_id}")
+        assert get.status_code == 404
+
+    async def test_delete_own_report_returns_204(
+        self, researcher_client
+    ) -> None:
+        create = await researcher_client.post(
+            "/api/custom-reports/",
+            json={"name": "Delete Me", "definition": self._defn},
+        )
+        report_id = create.json()["id"]
+        delete = await researcher_client.post(
+            f"/api/custom-reports/{report_id}/delete"
+        )
+        assert delete.status_code == 204
+        get = await researcher_client.get(f"/api/custom-reports/{report_id}")
+        assert get.status_code == 404
+
+    async def test_run_saved_report_returns_query_result(
+        self, researcher_client
+    ) -> None:
+        create = await researcher_client.post(
+            "/api/custom-reports/",
+            json={"name": "Run Me", "definition": self._defn},
+        )
+        report_id = create.json()["id"]
+        run = await researcher_client.post(
+            f"/api/custom-reports/{report_id}/run"
+        )
+        assert run.status_code == 200
+        data = run.json()
+        assert data["columns"] == ["country", "gender"]
+        assert "suppressed_count" in data
+        assert data["report_id"] == report_id
+
+    async def test_run_includes_suppressed_count(
+        self, researcher_client
+    ) -> None:
+        """High-cardinality definition maximises suppression probability."""
+        create = await researcher_client.post(
+            "/api/custom-reports/",
+            json={
+                "name": "High Cardinality",
+                "definition": {
+                    "dimensions": [
+                        "country", "gender", "age_band",
+                        "leak_type", "cause_group",
+                    ]
+                },
+            },
+        )
+        report_id = create.json()["id"]
+        run = await researcher_client.post(
+            f"/api/custom-reports/{report_id}/run"
+        )
+        assert run.status_code == 200
+        assert isinstance(run.json()["suppressed_count"], int)
