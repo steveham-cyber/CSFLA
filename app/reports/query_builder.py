@@ -140,6 +140,15 @@ async def run_query(
     COUNT(DISTINCT m.pseudo_id) is used throughout to avoid double-counting
     when joining one-to-many tables.
     """
+    # Validate inputs — defence in depth (HTTP handler also validates via Pydantic,
+    # but this module should not assume its caller is the HTTP layer).
+    for d in dimensions:
+        if d not in VALID_FIELD_KEYS:
+            raise ValueError(f"Unknown dimension: {d!r}")
+    for k in filters.keys():
+        if k not in VALID_FIELD_KEYS:
+            raise ValueError(f"Unknown filter key: {k!r}")
+
     all_fields = set(dimensions) | set(filters.keys())
 
     needs_leak = any(
@@ -163,10 +172,14 @@ async def run_query(
     # ── FROM + JOINs ──────────────────────────────────────────────────────
     from_parts = ["FROM members m"]
     if needs_leak:
+        # LEFT JOIN: members without a csf_leak_types row are included unless
+        # a filter on leak_type is applied (which then makes this effectively
+        # an INNER JOIN — intentional, as we're narrowing to that population).
         from_parts.append(
             "LEFT JOIN csf_leak_types clt ON clt.pseudo_id = m.pseudo_id"
         )
     if needs_cause:
+        # Same semantics as the leak_type join above.
         from_parts.append(
             "LEFT JOIN causes_of_leak col ON col.pseudo_id = m.pseudo_id"
         )
@@ -181,19 +194,13 @@ async def run_query(
             continue
 
         if field_key == "cause_group":
-            # Translate group names → individual cause values for WHERE clause.
-            # (The CASE WHEN expression is only in SELECT/GROUP BY.)
-            individual_causes = [
-                cause
-                for cause, grp in CAUSE_TO_GROUP.items()
-                if grp in values
-            ]
-            if individual_causes:
-                pnames = [f"fg_{i}" for i in range(len(individual_causes))]
-                placeholders = ", ".join(f":{p}" for p in pnames)
-                conditions.append(f"col.cause IN ({placeholders})")
-                for pname, val in zip(pnames, individual_causes):
-                    params[pname] = val
+            # Filter using the same CASE expression as the SELECT/GROUP BY
+            # so the WHERE is symmetric with the output (including the ELSE branch).
+            pnames = [f"cg_{i}" for i in range(len(values))]
+            placeholders = ", ".join(f":{p}" for p in pnames)
+            conditions.append(f"({_CAUSE_GROUP_COL_EXPR}) IN ({placeholders})")
+            for pname, val in zip(pnames, values):
+                params[pname] = val
         else:
             col_expr = AVAILABLE_FIELDS[field_key]["col_expr"]
             pnames = [f"f_{field_key}_{i}" for i in range(len(values))]
@@ -204,7 +211,23 @@ async def run_query(
 
     where_sql = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     group_sql = ("GROUP BY " + ", ".join(group_exprs)) if group_exprs else ""
-    order_sql = ("ORDER BY " + ", ".join(group_exprs)) if group_exprs else ""
+
+    # Build ORDER BY — for cause_group use clinical ordering, not alphabetical
+    if group_exprs:
+        order_parts: list[str] = []
+        for dim in dimensions:
+            if dim == "cause_group":
+                # Build explicit CASE WHEN for clinical order
+                order_case = "CASE " + " ".join(
+                    f"WHEN ({_CAUSE_GROUP_COL_EXPR}) = '{g}' THEN {i}"
+                    for i, g in enumerate(CAUSE_GROUP_ORDER)
+                ) + f" ELSE {len(CAUSE_GROUP_ORDER)} END"
+                order_parts.append(order_case)
+            else:
+                order_parts.append(AVAILABLE_FIELDS[dim]["col_expr"])
+        order_sql = "ORDER BY " + ", ".join(order_parts)
+    else:
+        order_sql = ""
 
     # ── Main query ────────────────────────────────────────────────────────
     main_q = f"""
