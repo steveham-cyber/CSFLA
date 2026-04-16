@@ -220,7 +220,11 @@ function renderSavedBar() {
             font-family:inherit;font-weight:var(--font-weight-medium);
             cursor:pointer;white-space:nowrap;
         `;
-        chip.addEventListener('click', () => loadReport(r.id));
+        chip.addEventListener('click', () => {
+            loadReport(r.id).catch(err => {
+                alert(`Could not load report: ${err.message}`);
+            });
+        });
         savedBar.appendChild(chip);
     }
 }
@@ -242,7 +246,7 @@ function renderResult(result) {
             <span style="font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);
                          color:var(--color-primary);">Results</span>
             <span style="font-size:var(--font-size-xs);color:var(--color-text-muted);">
-                ${result.total_shown.toLocaleString()} members shown
+                ${_esc(result.total_shown.toLocaleString())} members shown
             </span>
         </div>`;
 
@@ -255,7 +259,7 @@ function renderResult(result) {
                         margin-bottom:var(--space-3);display:flex;
                         align-items:flex-start;gap:var(--space-2);">
                 <span>&#9888;</span>
-                <span><strong>${n} combination${n === 1 ? '' : 's'} hidden</strong>
+                <span><strong>${_esc(n)} combination${n === 1 ? '' : 's'} hidden</strong>
                     — fewer than 10 members each. These are not shown to protect member privacy.</span>
             </div>`;
     }
@@ -294,7 +298,7 @@ function renderResult(result) {
             }
             html += `<td style="padding:9px var(--space-4);font-size:var(--font-size-sm);
                 font-weight:var(--font-weight-bold);color:var(--color-primary);
-                text-align:right;">${row.member_count.toLocaleString()}</td>
+                text-align:right;">${_esc(row.member_count.toLocaleString())}</td>
             </tr>`;
         }
         html += `</tbody></table></div>`;
