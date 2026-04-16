@@ -25,5 +25,5 @@ def require_admin(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
 
 
 def require_researcher(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
-    user.require_role("admin", "researcher", "viewer")
+    user.require_role("admin", "researcher")
     return user
