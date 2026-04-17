@@ -42,7 +42,7 @@ async def _make_member(
     *,
     country: str = "England",
     gender: str | None = "female",
-    age_band: str | None = "30_39",
+    age_band: str | None = "26_34",
     region: str | None = "London",
     outward_code: str | None = "SW1A",
     member_since_year: int | None = 2020,
@@ -111,10 +111,10 @@ async def _add_cause(
 #
 # Inserts a cohort designed to satisfy all report tests:
 #
-#   - 12 England/female/30_39/spinal/csfLeakSuffererDiagnosed (k≥10 for England)
-#   - 9 Scotland/male/40_49/cranial/csfLeakSuffererSuspected (k<10 – below threshold)
-#   - 2 Germany/female/50_59/spinalAndCranial/formerCsfLeakSufferer
-#   - 1 France/female/20_29/unknown/csfLeakSuffererDiagnosed
+#   - 12 England/female/26_34/spinal/csfLeakSuffererDiagnosed (k≥10 for England)
+#   - 9 Scotland/male/35_49/cranial/csfLeakSuffererSuspected (k<10 – below threshold)
+#   - 2 Germany/female/50_69/spinalAndCranial/formerCsfLeakSufferer
+#   - 1 France/female/18_25/unknown/csfLeakSuffererDiagnosed
 #
 # Causes split:
 #   - England group: ehlersDanlosSyndrome (Connective Tissue Disorder)
@@ -141,7 +141,7 @@ async def standard_cohort(db_session: AsyncSession) -> dict:
         pid = f"eng-f-{i:04d}"
         await _make_member(
             db_session, bid, pid,
-            country="England", gender="female", age_band="30_39",
+            country="England", gender="female", age_band="26_34",
             region="London", outward_code="SW1A", member_since_year=2020,
             referral_source=["socialMedia"],
         )
@@ -155,7 +155,7 @@ async def standard_cohort(db_session: AsyncSession) -> dict:
         pid = f"sco-m-{i:04d}"
         await _make_member(
             db_session, bid, pid,
-            country="Scotland", gender="male", age_band="40_49",
+            country="Scotland", gender="male", age_band="35_49",
             region="Lothian", outward_code="EH1", member_since_year=2021,
             referral_source=["gp"],
         )
@@ -169,7 +169,7 @@ async def standard_cohort(db_session: AsyncSession) -> dict:
         pid = f"deu-f-{i:04d}"
         await _make_member(
             db_session, bid, pid,
-            country="Germany", gender="female", age_band="50_59",
+            country="Germany", gender="female", age_band="50_69",
             region=None, outward_code=None, member_since_year=2022,
             referral_source=None,
         )
@@ -183,7 +183,7 @@ async def standard_cohort(db_session: AsyncSession) -> dict:
     pid = "fra-f-0000"
     await _make_member(
         db_session, bid, pid,
-        country="France", gender="female", age_band="20_29",
+        country="France", gender="female", age_band="18_25",
         region=None, outward_code=None, member_since_year=2023,
         referral_source=None,
     )
