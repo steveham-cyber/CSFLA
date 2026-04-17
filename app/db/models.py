@@ -60,6 +60,16 @@ class Member(Base):
     leak_types = relationship("CSFLeakType", back_populates="member", cascade="all, delete-orphan")
     causes = relationship("CauseOfLeak", back_populates="member", cascade="all, delete-orphan")
 
+    __table_args__ = (
+        CheckConstraint(
+            "age_band IN ("
+            "'under_18','18_25','26_34','35_49',"
+            "'50_69','70_79','80_89','90_plus'"
+            ")",
+            name="ck_members_age_band",
+        ),
+    )
+
 
 class MemberStatus(Base):
     __tablename__ = "member_statuses"

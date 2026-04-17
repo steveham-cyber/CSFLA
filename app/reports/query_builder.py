@@ -19,6 +19,7 @@ from reports import (
     CAUSE_GROUPS,
     CAUSE_GROUP_ORDER,
     CAUSE_TO_GROUP,
+    AGE_BAND_ORDER,
 )
 
 # CASE WHEN expression mapping col.cause values to group names.
@@ -64,7 +65,8 @@ AVAILABLE_FIELDS: dict[str, dict] = {
         "label": "Age Band",
         "source": "members",
         "col_expr": "m.age_band",
-        "dynamic": True,
+        "dynamic": False,
+        "values": list(AGE_BAND_ORDER),
     },
     "leak_type": {
         "label": "CSF Leak Type",

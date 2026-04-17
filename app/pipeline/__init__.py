@@ -43,6 +43,7 @@ from pipeline.field_transform import (
     to_membership_year,
     to_outward_code,
 )
+from reports import VALID_AGE_BANDS
 
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -180,8 +181,13 @@ def _transform_record(row: dict) -> tuple[dict, dict, list[str]]:
     referral_raw = row.get("referralSource") or row.get("howDidYouHearAboutUs")
     referral_list = _parse_pipe_list(referral_raw) or None
 
+    age_band = to_age_band(row.get("dateOfBirth"))
+    if age_band is not None and age_band not in VALID_AGE_BANDS:
+        warnings.append(f"age_band: unrecognised value '{age_band}'")
+        age_band = None
+
     member_data = {
-        "age_band": to_age_band(row.get("dateOfBirth")),
+        "age_band": age_band,
         "gender": normalise_gender(row.get("gender")),
         "country": (row.get("country") or "").strip().title(),
         "region": (row.get("countyRegionStateProvince") or "").strip() or None,

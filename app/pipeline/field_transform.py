@@ -15,21 +15,22 @@ from datetime import date
 # Ordered list of (upper-bound-exclusive, band-label) pairs.
 # Evaluated top-to-bottom; first match wins.
 _AGE_BAND_THRESHOLDS: list[tuple[int, str]] = [
-    (18, "under_18"),
-    (30, "18_29"),
-    (40, "30_39"),
-    (50, "40_49"),
-    (60, "50_59"),
-    (70, "60_69"),
+    (18,  "under_18"),
+    (26,  "18_25"),
+    (35,  "26_34"),
+    (50,  "35_49"),
+    (70,  "50_69"),
+    (80,  "70_79"),
+    (90,  "80_89"),
 ]
-_BAND_70_OVER = "70_over"
+_BAND_90_PLUS = "90_plus"
 
 
 def to_age_band(date_of_birth: str | None) -> str | None:
     """
-    Convert an ISO date-of-birth string (YYYY-MM-DD) to a decade age band.
+    Convert an ISO date-of-birth string (YYYY-MM-DD) to an age band.
 
-    Bands: under_18 | 18_29 | 30_39 | 40_49 | 50_59 | 60_69 | 70_over
+    Bands: under_18 | 18_25 | 26_34 | 35_49 | 50_69 | 70_79 | 80_89 | 90_plus
 
     Returns None if the value is missing, empty, or not a parseable date.
     Age is calculated relative to today's date.
@@ -49,7 +50,7 @@ def to_age_band(date_of_birth: str | None) -> str | None:
     for threshold, band in _AGE_BAND_THRESHOLDS:
         if age < threshold:
             return band
-    return _BAND_70_OVER
+    return _BAND_90_PLUS
 
 
 # ── Outward code ──────────────────────────────────────────────────────────────

@@ -27,6 +27,28 @@ LEAK_TYPES_FOR_ANALYSIS: frozenset[str] = frozenset({
     "spinal", "cranial", "spinalAndCranial", "unknown",
 })
 
+VALID_AGE_BANDS: frozenset[str] = frozenset({
+    "under_18",
+    "18_25",
+    "26_34",
+    "35_49",
+    "50_69",
+    "70_79",
+    "80_89",
+    "90_plus",
+})
+
+AGE_BAND_ORDER: list[str] = [
+    "under_18",
+    "18_25",
+    "26_34",
+    "35_49",
+    "50_69",
+    "70_79",
+    "80_89",
+    "90_plus",
+]
+
 # ── Cause groupings ───────────────────────────────────────────────────────────
 
 CAUSE_GROUPS: dict[str, frozenset[str]] = {
