@@ -67,6 +67,53 @@ const FILTER_LABELS = {
   leak_type: 'Leak type', country_group: 'Country group',
 };
 
+// Static option values for known filter fields.
+// Dynamic fields (country, individual_cause) are populated from the API.
+const FILTER_OPTIONS = {
+  gender: [
+    { value: 'female', label: 'Female' },
+    { value: 'male', label: 'Male' },
+  ],
+  age_band: [
+    { value: 'under_18', label: 'Under 18' },
+    { value: '18_25',    label: '18–25' },
+    { value: '26_34',    label: '26–34' },
+    { value: '35_49',    label: '35–49' },
+    { value: '50_69',    label: '50–69' },
+    { value: '70_79',    label: '70–79' },
+    { value: '80_89',    label: '80–89' },
+    { value: '90_plus',  label: '90+' },
+  ],
+  diagnostic_status: [
+    { value: 'csfLeakSuffererDiagnosed', label: 'Diagnosed' },
+    { value: 'csfLeakSuffererSuspected', label: 'Suspected' },
+    { value: 'formerCsfLeakSufferer',    label: 'Former sufferer' },
+    { value: 'familyFriendOfSufferer',   label: 'Family / Friend' },
+    { value: 'medicalProfessional',      label: 'Medical Professional' },
+    { value: 'other',                    label: 'Other' },
+  ],
+  leak_type: [
+    { value: 'spinal',          label: 'Spinal' },
+    { value: 'cranial',         label: 'Cranial' },
+    { value: 'spinalAndCranial', label: 'Spinal & Cranial' },
+    { value: 'unknown',         label: 'Unknown' },
+  ],
+  cause_group: [
+    { value: 'Iatrogenic',                       label: 'Iatrogenic' },
+    { value: 'Connective Tissue Disorder',        label: 'Connective Tissue Disorder' },
+    { value: 'Spontaneous / Structural (Spinal)', label: 'Spontaneous / Structural (Spinal)' },
+    { value: 'IIH-Related / Cranial',             label: 'IIH-Related / Cranial' },
+    { value: 'Traumatic',                         label: 'Traumatic' },
+    { value: 'Other',                             label: 'Other' },
+    { value: 'Unknown / Not disclosed',           label: 'Unknown / Not disclosed' },
+  ],
+  country_group: [
+    { value: 'UK',    label: 'UK' },
+    { value: 'EU',    label: 'EU' },
+    { value: 'Other', label: 'Other' },
+  ],
+};
+
 const CHART_COLORS = [
   getComputedStyle(document.documentElement).getPropertyValue('--chart-1').trim(),
   getComputedStyle(document.documentElement).getPropertyValue('--chart-2').trim(),
@@ -139,10 +186,18 @@ function buildFilters() {
       select.name = key;
       select.className = 'filter-input';
       select.innerHTML = `<option value="">All</option>`;
+      // Populate static options immediately if available
+      if (FILTER_OPTIONS[key]) {
+        FILTER_OPTIONS[key].forEach(opt => {
+          const o = document.createElement('option');
+          o.value = opt.value;
+          o.textContent = opt.label;
+          select.appendChild(o);
+        });
+      }
       select.addEventListener('change', () => loadReport());
       wrapper.appendChild(labelEl);
       wrapper.appendChild(select);
-      // Populate options lazily after first data load
     }
 
     controls.appendChild(wrapper);
@@ -524,10 +579,35 @@ async function loadReport() {
   }
 }
 
+// ── Populate dynamic filter options ───────────────────────────────────────
+
+async function populateDynamicFilters() {
+  // country: fetch from cohort report, which always returns all countries
+  const countrySelect = document.getElementById('filter-country');
+  if (!countrySelect) return;
+  try {
+    const res = await fetch('/api/reports/cohort');
+    if (!res.ok) return;
+    const data = await res.json();
+    const countries = (data.country_breakdown?.shown || []).map(r => r.country).sort();
+    const currentVal = countrySelect.value;
+    countries.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c;
+      opt.textContent = c;
+      countrySelect.appendChild(opt);
+    });
+    countrySelect.value = currentVal; // preserve selection if any
+  } catch (e) {
+    // Country filter will show only "All" — still functional
+  }
+}
+
 // ── Initialise ─────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
   buildFilters();
+  populateDynamicFilters(); // async, runs in background alongside initial load
   loadReport();
 });
 </script>
