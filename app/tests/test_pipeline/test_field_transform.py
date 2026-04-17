@@ -25,6 +25,8 @@ class TestToAgeBand:
     Age bands are computed relative to today's date, so tests use
     date-of-birth values that are known to be in each band for any
     plausible test run date.
+
+    Vocabulary: under_18 | 18_25 | 26_34 | 35_49 | 50_69 | 70_79 | 80_89 | 90_plus
     """
 
     def _dob_for_age(self, age: int) -> str:
@@ -33,45 +35,41 @@ class TestToAgeBand:
         dob = today.replace(year=today.year - age)
         return dob.isoformat()
 
+    # ── Mid-band values ───────────────────────────────────────────────────────
+
     def test_under_18(self) -> None:
         dob = self._dob_for_age(15)
         assert to_age_band(dob) == "under_18"
 
-    def test_18_29_lower_boundary(self) -> None:
-        dob = self._dob_for_age(18)
-        assert to_age_band(dob) == "18_29"
+    def test_18_25_mid(self) -> None:
+        dob = self._dob_for_age(21)
+        assert to_age_band(dob) == "18_25"
 
-    def test_18_29_upper(self) -> None:
-        dob = self._dob_for_age(25)
-        assert to_age_band(dob) == "18_29"
-
-    def test_30_39_lower_boundary(self) -> None:
+    def test_26_34_mid(self) -> None:
         dob = self._dob_for_age(30)
-        assert to_age_band(dob) == "30_39"
+        assert to_age_band(dob) == "26_34"
 
-    def test_30_39_upper(self) -> None:
-        dob = self._dob_for_age(38)
-        assert to_age_band(dob) == "30_39"
+    def test_35_49_mid(self) -> None:
+        dob = self._dob_for_age(42)
+        assert to_age_band(dob) == "35_49"
 
-    def test_40_49(self) -> None:
-        dob = self._dob_for_age(45)
-        assert to_age_band(dob) == "40_49"
+    def test_50_69_mid(self) -> None:
+        dob = self._dob_for_age(60)
+        assert to_age_band(dob) == "50_69"
 
-    def test_50_59(self) -> None:
-        dob = self._dob_for_age(55)
-        assert to_age_band(dob) == "50_59"
+    def test_70_79_mid(self) -> None:
+        dob = self._dob_for_age(75)
+        assert to_age_band(dob) == "70_79"
 
-    def test_60_69(self) -> None:
-        dob = self._dob_for_age(65)
-        assert to_age_band(dob) == "60_69"
-
-    def test_70_over_lower_boundary(self) -> None:
-        dob = self._dob_for_age(70)
-        assert to_age_band(dob) == "70_over"
-
-    def test_70_over_upper(self) -> None:
+    def test_80_89_mid(self) -> None:
         dob = self._dob_for_age(85)
-        assert to_age_band(dob) == "70_over"
+        assert to_age_band(dob) == "80_89"
+
+    def test_90_plus(self) -> None:
+        dob = self._dob_for_age(95)
+        assert to_age_band(dob) == "90_plus"
+
+    # ── Null / invalid input ──────────────────────────────────────────────────
 
     def test_none_returns_none(self) -> None:
         assert to_age_band(None) is None
@@ -87,24 +85,36 @@ class TestToAgeBand:
 
     def test_datetime_string_truncated_correctly(self) -> None:
         """Datetime strings with a time component must be handled via [:10] slicing."""
-        dob = self._dob_for_age(35)
+        dob = self._dob_for_age(40)
         dob_with_time = dob + "T00:00:00"
-        assert to_age_band(dob_with_time) == "30_39"
+        assert to_age_band(dob_with_time) == "35_49"
+
+    # ── Exact boundary cutpoints ──────────────────────────────────────────────
 
     @pytest.mark.parametrize("age,expected_band", [
+        # under_18 / 18_25 boundary
         (17, "under_18"),
-        (18, "18_29"),
-        (29, "18_29"),
-        (30, "30_39"),
-        (39, "30_39"),
-        (40, "40_49"),
-        (49, "40_49"),
-        (50, "50_59"),
-        (59, "50_59"),
-        (60, "60_69"),
-        (69, "60_69"),
-        (70, "70_over"),
-        (80, "70_over"),
+        (18, "18_25"),
+        # 18_25 / 26_34 boundary
+        (25, "18_25"),
+        (26, "26_34"),
+        # 26_34 / 35_49 boundary
+        (34, "26_34"),
+        (35, "35_49"),
+        # 35_49 / 50_69 boundary
+        (49, "35_49"),
+        (50, "50_69"),
+        # 50_69 / 70_79 boundary
+        (69, "50_69"),
+        (70, "70_79"),
+        # 70_79 / 80_89 boundary
+        (79, "70_79"),
+        (80, "80_89"),
+        # 80_89 / 90_plus boundary
+        (89, "80_89"),
+        (90, "90_plus"),
+        # well above 90
+        (100, "90_plus"),
     ])
     def test_age_band_boundaries(self, age: int, expected_band: str) -> None:
         dob = self._dob_for_age(age)

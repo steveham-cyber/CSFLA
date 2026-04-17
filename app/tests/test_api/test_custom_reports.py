@@ -53,16 +53,22 @@ class TestQueryBuilderUnit:
 
     def test_dynamic_fields_have_no_values_list(self) -> None:
         from reports.query_builder import AVAILABLE_FIELDS
-        for key in ("country", "gender", "age_band"):
+        for key in ("country", "gender"):
             assert AVAILABLE_FIELDS[key]["dynamic"] is True
             assert "values" not in AVAILABLE_FIELDS[key]
 
     def test_enum_fields_have_values_list(self) -> None:
         from reports.query_builder import AVAILABLE_FIELDS
-        for key in ("leak_type", "cause_group", "individual_cause"):
+        for key in ("age_band", "leak_type", "cause_group", "individual_cause"):
             assert AVAILABLE_FIELDS[key]["dynamic"] is False
             assert isinstance(AVAILABLE_FIELDS[key]["values"], list)
             assert len(AVAILABLE_FIELDS[key]["values"]) > 0
+
+    def test_age_band_has_eight_values_in_order(self) -> None:
+        from reports.query_builder import AVAILABLE_FIELDS
+        from reports import AGE_BAND_ORDER
+        assert AVAILABLE_FIELDS["age_band"]["values"] == AGE_BAND_ORDER
+        assert len(AVAILABLE_FIELDS["age_band"]["values"]) == 8
 
 
 class TestCustomReportAuth:
