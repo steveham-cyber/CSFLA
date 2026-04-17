@@ -38,7 +38,7 @@ class TestQueryBuilderUnit:
     def test_cause_group_col_expr_covers_all_groups(self) -> None:
         from reports.query_builder import _CAUSE_GROUP_COL_EXPR
         for group in ("Iatrogenic", "Connective Tissue Disorder",
-                      "Spontaneous / Structural", "Traumatic"):
+                      "Spontaneous / Structural (Spinal)", "Traumatic"):
             assert group in _CAUSE_GROUP_COL_EXPR
 
     def test_available_fields_has_six_entries(self) -> None:

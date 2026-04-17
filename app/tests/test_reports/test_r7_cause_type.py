@@ -59,7 +59,7 @@ async def test_r7_matrix_has_all_cause_groups(db_session: AsyncSession, standard
     group_labels = {r["label"] for r in result["matrix"] if r["type"] == "group"}
     assert "Iatrogenic" in group_labels
     assert "Connective Tissue Disorder" in group_labels
-    assert "Spontaneous / Structural" in group_labels
+    assert "Spontaneous / Structural (Spinal)" in group_labels
     assert "Traumatic" in group_labels
     assert "Unknown / Not disclosed" in group_labels
 
