@@ -25,5 +25,12 @@ def require_admin(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
 
 
 def require_researcher(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    """Standard reports — accessible to viewer, researcher, and admin."""
+    user.require_role("admin", "researcher", "viewer")
+    return user
+
+
+def require_researcher_no_viewer(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    """Custom report builder — viewer excluded per Lex compliance ruling."""
     user.require_role("admin", "researcher")
     return user
