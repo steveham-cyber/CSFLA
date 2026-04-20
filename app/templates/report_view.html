@@ -344,7 +344,9 @@ function renderGeneric(data) {
         <h4 style="margin-bottom:var(--space-3);">Primary Breakdown</h4>
         ${p.denominator_note ? `<p class="denominator-note">${p.denominator_note}</p>` : ''}
         ${p.null_note ? `<p class="denominator-note" style="margin-top:var(--space-2);">${p.null_note}</p>` : ''}
-        <canvas id="primary-chart" height="220" style="margin: var(--space-3) 0;"></canvas>
+        <div style="position:relative; height:220px; margin: var(--space-3) 0;">
+          <canvas id="primary-chart"></canvas>
+        </div>
         <div class="table-scroll"><table class="data-table">
           <thead><tr>
             <th>Value</th>
@@ -469,7 +471,9 @@ function renderR6(data) {
   const counts = data.by_year.map(r => r.new_sufferers);
   html += `<div class="card" style="margin-bottom:var(--space-4);">
     <h4 style="margin-bottom:var(--space-3);">New Sufferers Per Year</h4>
-    <canvas id="trends-chart" height="240"></canvas>
+    <div style="position:relative; height:240px;">
+      <canvas id="trends-chart"></canvas>
+    </div>
   </div>`;
   setTimeout(() => {
     if (typeof Chart === 'undefined') return;
@@ -525,7 +529,9 @@ function renderR8(data) {
       <div><div class="label-small">Members with source</div><div class="metric-value">${fmt(p.total_members_with_source)}</div></div>
       <div><div class="label-small">Members with no source recorded</div><div class="metric-value">${fmt(p.total_members_null_source)}</div></div>
     </div>
-    <canvas id="primary-chart" height="200" style="margin-bottom:var(--space-3);"></canvas>
+    <div style="position:relative; height:200px; margin-bottom:var(--space-3);">
+      <canvas id="primary-chart"></canvas>
+    </div>
     <div class="table-scroll"><table class="data-table">
       <thead><tr><th>Source</th><th>Count</th><th>% of members with source</th></tr></thead>
       <tbody>

@@ -56,10 +56,10 @@
         <h4>Member Status</h4>
         <a href="/reports/r2" style="font-size: var(--font-size-sm);">View full report →</a>
       </div>
-      <canvas id="chart-status" height="180" aria-label="Member status chart"></canvas>
-      <div id="chart-status-error" style="display:none; color:var(--color-text-muted); font-size:var(--font-size-sm); text-align:center; padding: var(--space-4);">
-        Chart unavailable
+      <div style="position:relative; height:180px;">
+        <canvas id="chart-status" aria-label="Member status chart"></canvas>
       </div>
+      <div id="chart-status-error" style="display:none; color:var(--color-text-muted); font-size:var(--font-size-sm); text-align:center; padding: var(--space-4);"></div>
     </div>
 
     <!-- Leak Type mini-chart -->
@@ -69,10 +69,10 @@
         <a href="/reports/r3" style="font-size: var(--font-size-sm);">View full report →</a>
       </div>
       <p style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-bottom: var(--space-3);">Sufferers with known leak type</p>
-      <canvas id="chart-leak-type" height="180" aria-label="Leak type distribution chart"></canvas>
-      <div id="chart-leak-type-error" style="display:none; color:var(--color-text-muted); font-size:var(--font-size-sm); text-align:center; padding: var(--space-4);">
-        Chart unavailable
+      <div style="position:relative; height:180px;">
+        <canvas id="chart-leak-type" aria-label="Leak type distribution chart"></canvas>
       </div>
+      <div id="chart-leak-type-error" style="display:none; color:var(--color-text-muted); font-size:var(--font-size-sm); text-align:center; padding: var(--space-4);"></div>
     </div>
 
   </div>
@@ -89,10 +89,10 @@
       </div>
       <a href="/reports/r6" style="font-size: var(--font-size-sm);">View full report →</a>
     </div>
-    <canvas id="chart-growth" height="200" aria-label="Cohort growth over time"></canvas>
-    <div id="chart-growth-error" style="display:none; color:var(--color-text-muted); font-size:var(--font-size-sm); text-align:center; padding: var(--space-4);">
-      Chart unavailable
+    <div style="position:relative; height:200px;">
+      <canvas id="chart-growth" aria-label="Cohort growth over time"></canvas>
     </div>
+    <div id="chart-growth-error" style="display:none; color:var(--color-text-muted); font-size:var(--font-size-sm); text-align:center; padding: var(--space-4);"></div>
   </div>
 
 </div>
