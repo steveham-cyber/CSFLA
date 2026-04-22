@@ -175,6 +175,19 @@ async def import_page(request: Request):
     })
 
 
+@router.get("/help", response_class=HTMLResponse, include_in_schema=False)
+async def help_page(request: Request):
+    user = _require_ui_user(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    return templates.TemplateResponse("help.html", {
+        "request": request,
+        "user": user,
+        "active_nav": "help",
+        "page_title": "User Guide",
+    })
+
+
 @router.get("/admin", response_class=HTMLResponse, include_in_schema=False)
 async def admin_page(request: Request):
     user = _require_ui_admin(request)

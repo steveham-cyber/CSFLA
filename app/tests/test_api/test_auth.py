@@ -81,6 +81,27 @@ class TestViewerRole:
         response = await viewer_client.get("/api/admin/audit-log")
         assert response.status_code == 403
 
+    async def test_viewer_can_access_help_page(self, viewer_client) -> None:
+        response = await viewer_client.get("/help")
+        assert response.status_code == 200
+
+
+class TestHelpPage:
+    """Help page is accessible to all authenticated roles and blocks anon."""
+
+    async def test_researcher_can_access_help_page(self, researcher_client) -> None:
+        response = await researcher_client.get("/help")
+        assert response.status_code == 200
+
+    async def test_admin_can_access_help_page(self, admin_client) -> None:
+        response = await admin_client.get("/help")
+        assert response.status_code == 200
+
+    async def test_anon_is_redirected_from_help_page(self, anon_client) -> None:
+        response = await anon_client.get("/help")
+        assert response.status_code == 302
+        assert "/auth/login" in response.headers["location"]
+
 
 # ── Researcher role tests ─────────────────────────────────────────────────────
 
