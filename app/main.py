@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
@@ -12,8 +14,28 @@ from api.routes import ui
 
 settings = get_settings()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Create database tables on startup if they don't already exist."""
+    from db.models import Base
+    if settings.is_local:
+        from db.connection import _get_local_engine
+        engine = _get_local_engine()
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    else:
+        from db.connection import _create_azure_engine
+        engine = await _create_azure_engine()
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        await engine.dispose()
+    yield
+
+
 app = FastAPI(
     title="CSFLA Research Application",
+    lifespan=lifespan,
     docs_url="/docs" if settings.is_local else None,  # Disable Swagger in production
     redoc_url=None,
 )
