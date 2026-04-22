@@ -136,7 +136,7 @@ async def report_view(request: Request, report_id: str):
         return user
 
     # Validate report_id
-    valid_ids = {"r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8"}
+    valid_ids = {"r1", "r2", "r3", "r4", "r5", "r6", "r7"}
     if report_id not in valid_ids:
         return RedirectResponse(url="/reports", status_code=302)
 
