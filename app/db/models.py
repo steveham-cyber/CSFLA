@@ -216,3 +216,33 @@ class CustomReportAudit(Base):
             name="ck_custom_report_audit_action",
         ),
     )
+
+
+class ExportAudit(Base):
+    """
+    Immutable audit log for admin data export operations.
+
+    Captures who exported, when, in what format, how many rows were included
+    and suppressed, the client IP, the outcome, and whether the user
+    acknowledged the data-handling obligations before downloading.
+
+    No delete endpoint exists for this table (REQ-EXP-04).
+    """
+
+    __tablename__ = "export_audit"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    exported_by = Column(Text, nullable=False)        # Entra ID OID
+    exported_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    format = Column(Text, nullable=False)             # 'csv', 'json', 'ndjson'
+    row_count = Column(Integer, nullable=False)
+    suppressed_count = Column(Integer, nullable=False, default=0)
+    client_ip = Column(Text)
+    outcome = Column(Text, nullable=False)            # 'success', 'failure', 'suppressed_warning'
+    acknowledged = Column(Boolean, nullable=False, default=False)
+
+    __table_args__ = (
+        Index("ix_export_audit_exported_by", "exported_by"),
+        CheckConstraint("outcome IN ('success', 'failure')", name="ck_export_audit_outcome"),
+        CheckConstraint("format IN ('csv', 'json', 'ndjson')", name="ck_export_audit_format"),
+    )

@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.dependencies import require_researcher
+from api.dependencies import require_researcher_no_viewer as require_researcher
 from auth.entra import CurrentUser
 from db.connection import get_db
 from db.models import CustomReport, CustomReportAudit
