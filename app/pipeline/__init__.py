@@ -174,8 +174,8 @@ def _transform_record(row: dict) -> tuple[dict, dict, list[str]]:
     for v in bad_causes:
         warnings.append(f"causeOfLeak: unrecognised value '{v}'")
 
-    # memberSince is primary; manualStart is the fallback
-    member_since_raw = row.get("memberSince") or row.get("manualStart")
+    # memberSince is primary; manualStart and dateCreated are fallbacks in that order
+    member_since_raw = row.get("memberSince") or row.get("manualStart") or row.get("dateCreated")
 
     # Accept either column name for the referral source field
     referral_raw = row.get("referralSource") or row.get("howDidYouHearAboutUs")

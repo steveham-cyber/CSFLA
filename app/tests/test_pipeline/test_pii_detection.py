@@ -27,7 +27,7 @@ class TestCleanRecord:
         """A valid post-transformation record with no PII fields."""
         return {
             "pseudo_id": "abc123XYZ_urlsafe",
-            "age_band": "30_39",
+            "age_band": "26_34",
             "gender": "female",
             "country": "England",
             "region": None,
@@ -183,7 +183,7 @@ class TestPipelineHaltOnPII:
     def test_pii_check_does_not_raise_on_clean_record(self) -> None:
         clean = {
             "pseudo_id": "abc123XYZ",
-            "age_band": "30_39",
+            "age_band": "26_34",
             "gender": "female",
             "country": "England",
             "outward_code": "SW1A",

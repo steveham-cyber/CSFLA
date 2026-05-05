@@ -3,12 +3,12 @@
    Source: Quisk Style Guide, 1 Sept 2021
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
 
 /* ── Colour tokens ─────────────────────────────────────────── */
 :root {
   /* Brand blues */
-  --color-primary:        #334D6E;   /* title / heading blue */
+  --color-primary:        #29508E;   /* title / heading blue — brand dark blue (blue-800) */
   --color-primary-mid:    #4C98C6;   /* buttons, CTAs, nav active state */
   --color-primary-bright: #438AE1;   /* links, interactive elements */
   --color-primary-deep:   #29508E;   /* gradient anchor */
@@ -21,10 +21,10 @@
   --color-text-on-dark-muted: rgba(255, 255, 255, 0.7);
 
   /* Backgrounds */
-  --color-bg-page:        #EAF0F5;
-  --color-bg-card:        #F2F5FA;
+  --color-bg-page:        #F2F5FA;   /* brand blue-10 — lighter, cleaner page bg */
+  --color-bg-card:        #FFFFFF;   /* cards are white per design system */
   --color-bg-white:       #FFFFFF;
-  --color-bg-dark:        #394256;
+  --color-bg-dark:        #29508E;   /* brand dark blue — nav background base */
   --color-bg-darkest:     #272D3B;
   --color-bg-shape:       #D7E4EF;   /* subtle background shapes */
 
@@ -33,12 +33,12 @@
   --color-border-strong:  #334D6E;
 
   /* Accent */
-  --color-yellow:         #FFC55C;   /* brand accent — warnings, highlights */
+  --color-yellow:         #F5C842;   /* brand accent gold — warnings, highlights */
 
   /* Semantic */
   --color-suppressed:     #D7E4EF;   /* k<10 suppressed cells */
   --color-success:        #286F8C;   /* using brand teal — no red/green dependency */
-  --color-warning:        #FFC55C;   /* brand yellow */
+  --color-warning:        #F5C842;   /* brand gold */
   --color-error:          #8E3A59;   /* dark rose — accessible, not pure red */
 
   /* Chart palette (colour-blind safe — brand-derived, 6 values) */
@@ -46,7 +46,7 @@
   --chart-2: #4C98C6;
   --chart-3: #438AE1;
   --chart-4: #9CC9FF;
-  --chart-5: #FFC55C;
+  --chart-5: #F5C842;
   --chart-6: #286F8C;
 
   /* ── Typography tokens ──────────────────────────────────── */
@@ -154,7 +154,7 @@ a:hover { color: var(--color-primary-mid); }
 }
 
 .app-nav {
-  background-color: var(--color-bg-dark);
+  background: radial-gradient(160% 100% at 50% 0%, #3A6BB5 0%, #29508E 100%);
   color: var(--color-text-on-dark);
   padding: var(--space-5);
   display: flex;
@@ -249,12 +249,18 @@ a:hover { color: var(--color-primary-mid); }
 
 .btn-ghost {
   background: transparent;
-  color: var(--color-primary-bright);
-  border: 1px solid var(--color-border-strong);
+  color: var(--color-primary-mid);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all 150ms ease;
 }
 .btn-ghost:hover {
-  background-color: var(--color-bg-card);
-  color: var(--color-primary);
+  background: var(--color-bg-card);
+  border-color: var(--color-primary-mid);
 }
 
 /* ── Focus indicator (WCAG AA) ──────────────────────────────── */
@@ -328,19 +334,18 @@ a:hover { color: var(--color-primary-mid); }
 
 /* ── Filter inputs ────────────────────────────────────────────── */
 .filter-input {
-  font-family: var(--font-family);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-body);
-  background: var(--color-bg-white);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-3);
-  min-height: 44px;
-  cursor: pointer;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  background: var(--color-bg-white);
+  color: var(--color-text-body);
 }
 .filter-input:focus {
-  outline: 2px solid var(--color-primary-bright);
-  outline-offset: 2px;
+  outline: none;
+  border-color: var(--color-primary-mid);
+  box-shadow: 0 0 0 3px rgba(76, 152, 198, 0.15);
 }
 
 /* ── Loading state ────────────────────────────────────────────── */

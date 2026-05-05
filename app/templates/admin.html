@@ -38,11 +38,109 @@
       <div id="admin-last-import" style="color: var(--color-text-muted); font-size: var(--font-size-sm);">Loading…</div>
     </div>
 
+    <!-- Data Export -->
+    <div class="card">
+      <h4 style="margin-bottom: var(--space-2);">Data Export</h4>
+      <p style="font-size: var(--font-size-sm); color: var(--color-text-muted); margin-bottom: var(--space-3);">
+        Download all pseudonymised member records. Excludes postcode, personal identifiers, and any combinations below the suppression threshold.
+      </p>
+
+      <div style="margin-bottom: var(--space-3);">
+        <label style="font-size: var(--font-size-sm); font-weight: 600; display: block; margin-bottom: var(--space-1);">Format</label>
+        <select id="export-format" style="width: 100%; padding: var(--space-1) var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius); font-size: var(--font-size-sm); background: var(--color-bg);">
+          <option value="csv" selected>CSV (Excel-compatible)</option>
+          <option value="json">JSON</option>
+          <option value="ndjson">NDJSON (newline-delimited)</option>
+        </select>
+      </div>
+
+      <div id="export-error" style="display:none; color: var(--color-danger, #c0392b); font-size: var(--font-size-xs); margin-bottom: var(--space-2);"></div>
+
+      <button id="export-btn" class="btn btn-primary" onclick="openExportModal()">Download Export</button>
+    </div>
+
   </div>
 
 </div>
 
-<script>
+<!-- Data Export confirmation modal -->
+<div id="export-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background: var(--color-bg); border-radius: var(--radius-lg, 8px); padding: var(--space-6); max-width: 480px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
+    <h4 style="margin-bottom: var(--space-3);">Confirm Data Download</h4>
+    <p style="font-size: var(--font-size-sm); margin-bottom: var(--space-3);">
+      This file contains <strong>special category health data</strong>. By downloading, you confirm that:
+    </p>
+    <ul style="font-size: var(--font-size-sm); margin-bottom: var(--space-4); padding-left: var(--space-4); line-height: 1.7;">
+      <li>This file will not be shared outside the organisation</li>
+      <li>You will delete it from local storage within 30 days</li>
+      <li>You understand this action is logged and audited</li>
+    </ul>
+    <div style="display:flex; gap: var(--space-2); justify-content:flex-end;">
+      <button class="btn" onclick="closeExportModal()" style="background: var(--color-bg); border: 1px solid var(--color-border);">Cancel</button>
+      <button id="modal-confirm-btn" class="btn btn-primary" onclick="confirmExportDownload()">I Acknowledge — Download</button>
+    </div>
+  </div>
+</div>
+
+<script nonce="{{ request.state.csp_nonce }}">
+function openExportModal() {
+  document.getElementById('export-error').style.display = 'none';
+  document.getElementById('export-modal').style.display = 'flex';
+}
+
+function closeExportModal() {
+  document.getElementById('export-modal').style.display = 'none';
+}
+
+async function confirmExportDownload() {
+  const fmt = document.getElementById('export-format').value;
+  const btn = document.getElementById('export-btn');
+  const modalBtn = document.getElementById('modal-confirm-btn');
+  const errorEl = document.getElementById('export-error');
+
+  closeExportModal();
+  btn.disabled = true;
+  btn.textContent = 'Preparing…';
+  errorEl.style.display = 'none';
+
+  try {
+    const url = `/api/admin/export?format=${encodeURIComponent(fmt)}&acknowledged=true`;
+    const res = await fetch(url, { method: 'GET' });
+
+    if (res.status === 429) {
+      errorEl.textContent = 'Export limit reached. One full export is permitted per 24-hour period.';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    if (!res.ok) {
+      errorEl.textContent = 'Export failed. Please try again or contact support.';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    // Convert to blob and trigger a single download — avoids a second request
+    // that would hit the rate-limit on the happy path.
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    const disposition = res.headers.get('content-disposition') || '';
+    const match = disposition.match(/filename="([^"]+)"/);
+    a.download = match ? match[1] : `csfla_export.${fmt}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objectUrl);
+  } catch (e) {
+    errorEl.textContent = 'Export failed. Please check your connection and try again.';
+    errorEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Download Export';
+  }
+}
+
 async function loadAdminStats() {
   try {
     const cohortRes = await fetch('/api/reports/cohort');

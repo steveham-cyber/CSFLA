@@ -136,7 +136,7 @@ async def report_view(request: Request, report_id: str):
         return user
 
     # Validate report_id
-    valid_ids = {"r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8"}
+    valid_ids = {"r1", "r2", "r3", "r4", "r5", "r6", "r7"}
     if report_id not in valid_ids:
         return RedirectResponse(url="/reports", status_code=302)
 
@@ -172,6 +172,19 @@ async def import_page(request: Request):
         "user": user,
         "active_nav": "import",
         "page_title": "Data Import",
+    })
+
+
+@router.get("/help", response_class=HTMLResponse, include_in_schema=False)
+async def help_page(request: Request):
+    user = _require_ui_user(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    return templates.TemplateResponse("help.html", {
+        "request": request,
+        "user": user,
+        "active_nav": "help",
+        "page_title": "User Guide",
     })
 
 

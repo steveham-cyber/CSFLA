@@ -21,7 +21,6 @@ import reports.r4_cause     as r4
 import reports.r5_geography as r5
 import reports.r6_trends    as r6
 import reports.r7_cause_type as r7
-import reports.r8_referral  as r8
 
 router = APIRouter()
 
@@ -84,13 +83,6 @@ async def list_reports(user: CurrentUser = Depends(require_researcher)):
                 "path": "/reports/cause-type",
                 "filters": ["diagnostic_status", "gender", "age_band", "country", "year_from", "year_to"],
                 "description": "Research matrix: cause of leak × leak type, with chi-square test.",
-            },
-            {
-                "id": "r8",
-                "title": "Referral Source Analysis",
-                "path": "/reports/referral",
-                "filters": ["year_from", "year_to", "country"],
-                "description": "How members heard about the charity.",
             },
         ]
     }
@@ -249,21 +241,6 @@ async def report_cause_type(
         year_from=year_from,
         year_to=year_to,
     )
-
-
-# ── R8: Referral Source Analysis ──────────────────────────────────────────────
-
-@router.get("/referral")
-async def report_referral(
-    year_from: Optional[int] = Query(default=None, ge=2000, le=2100),
-    year_to:   Optional[int] = Query(default=None, ge=2000, le=2100),
-    country:   Optional[str] = Query(default=None),
-    user: CurrentUser = Depends(require_researcher),
-    db: AsyncSession = Depends(get_db),
-):
-    """Report 8 — Referral Source Analysis."""
-    _validate_year_range(year_from, year_to)
-    return await r8.run(db, year_from=year_from, year_to=year_to, country=country)
 
 
 # ── Validation helpers ────────────────────────────────────────────────────────

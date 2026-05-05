@@ -24,6 +24,7 @@ Pseudonymisation key:
   This key is NEVER used in production. See Test Strategy v0.1 Section 3.1.
 """
 
+import json
 import os
 import urllib.parse
 from contextvars import ContextVar
@@ -95,6 +96,28 @@ async def _contextvar_get_current_user() -> CurrentUser:
     return user
 
 
+def _sign_session(user: CurrentUser) -> str:
+    """
+    Create a signed Starlette session cookie value for test injection.
+
+    Mirrors the encoding used by starlette.middleware.sessions.SessionMiddleware
+    so that _require_ui_user (which reads request.session) finds the user in tests.
+    """
+    from base64 import b64encode
+    from itsdangerous import TimestampSigner
+    from config import get_settings
+
+    session_data = {
+        "user": {
+            "oid": user.id,
+            "name": user.name,
+            "roles": user.roles,
+        }
+    }
+    data = b64encode(json.dumps(session_data).encode())
+    return TimestampSigner(str(get_settings().secret_key)).sign(data).decode()
+
+
 class _PerRequestUserTransport(ASGITransport):
     """
     httpx transport that sets _active_test_user for the lifetime of each request.
@@ -108,7 +131,26 @@ class _PerRequestUserTransport(ASGITransport):
     async def handle_async_request(self, request: HttpxRequest) -> HttpxResponse:
         token = _active_test_user.set(self._user)
         try:
-            return await super().handle_async_request(request)
+            # Inject a signed session cookie so that UI routes using _require_ui_user
+            # (which reads request.session, not get_current_user) can authenticate.
+            signed = _sign_session(self._user)
+            raw_headers = list(request.headers.raw)
+            cookie_bytes = f"session={signed}".encode()
+            for i, (name, val) in enumerate(raw_headers):
+                if name == b"cookie":
+                    raw_headers[i] = (name, val + b"; " + cookie_bytes)
+                    break
+            else:
+                raw_headers.append((b"cookie", cookie_bytes))
+
+            new_request = HttpxRequest(
+                method=request.method,
+                url=str(request.url),
+                headers=raw_headers,
+                stream=request.stream,
+                extensions=request.extensions,
+            )
+            return await super().handle_async_request(new_request)
         finally:
             _active_test_user.reset(token)
 
@@ -223,6 +265,32 @@ async def viewer_client_no_db(viewer_user: CurrentUser) -> AsyncClient:
     """
     async with AsyncClient(
         transport=_PerRequestUserTransport(user=viewer_user),
+        base_url="http://test",
+    ) as client:
+        yield client
+
+
+@pytest_asyncio.fixture
+async def researcher_client_no_db(researcher_user: CurrentUser) -> AsyncClient:
+    """
+    Authenticated researcher client with no DB dependency.
+    Use for tests where no DB access is needed (e.g. UI routes that only check session).
+    """
+    async with AsyncClient(
+        transport=_PerRequestUserTransport(user=researcher_user),
+        base_url="http://test",
+    ) as client:
+        yield client
+
+
+@pytest_asyncio.fixture
+async def admin_client_no_db(admin_user: CurrentUser) -> AsyncClient:
+    """
+    Authenticated admin client with no DB dependency.
+    Use for tests where no DB access is needed (e.g. UI routes that only check session).
+    """
+    async with AsyncClient(
+        transport=_PerRequestUserTransport(user=admin_user),
         base_url="http://test",
     ) as client:
         yield client
