@@ -155,6 +155,16 @@ function fmtPct(p) {
   return p.toFixed(1) + '%';
 }
 
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
 function suppCell(cell) {
   if (!cell || cell.suppressed) {
     return `<td class="cell-suppressed" title="Fewer than 10 members — suppressed">—</td>`;
@@ -240,7 +250,7 @@ function getFilterParams() {
 
 function renderError(msg) {
   document.getElementById('report-content').innerHTML =
-    `<div class="card" style="color:var(--color-error); padding:var(--space-6);">${msg}</div>`;
+    `<div class="card" style="color:var(--color-error); padding:var(--space-6);">${esc(msg)}</div>`;
 }
 
 function renderBarChart(canvasId, labels, values, label) {
@@ -267,12 +277,12 @@ function renderBarChart(canvasId, labels, values, label) {
 function renderCrossTab(rows, rowKey, colKeys, colLabels) {
   if (!rows || rows.length === 0) return '<p style="color:var(--color-text-muted);">No data.</p>';
   let html = `<div class="table-scroll"><table class="data-table"><thead><tr>
-    <th>${rowKey}</th>
-    ${colKeys.map(k => `<th>${colLabels[k] || k}</th>`).join('')}
+    <th>${esc(rowKey)}</th>
+    ${colKeys.map(k => `<th>${esc(colLabels[k] || k)}</th>`).join('')}
     <th>Total</th>
   </tr></thead><tbody>`;
   for (const row of rows) {
-    html += `<tr><td>${row.value ?? row[rowKey] ?? '—'}</td>
+    html += `<tr><td>${esc(row.value ?? row[rowKey] ?? '—')}</td>
       ${colKeys.map(k => suppCell(row[k])).join('')}
       ${suppCell(row.total)}
     </tr>`;
@@ -306,7 +316,7 @@ function renderR1(data) {
         <div class="table-scroll"><table class="data-table">
           <thead><tr><th>Country</th><th>Members</th><th>% of total</th></tr></thead>
           <tbody>
-            ${data.country_breakdown.shown.map(r => `<tr><td>${r.country}</td><td>${fmt(r.count)}</td><td>${fmtPct(r.pct_of_total)}</td></tr>`).join('')}
+            ${data.country_breakdown.shown.map(r => `<tr><td>${esc(r.country)}</td><td>${fmt(r.count)}</td><td>${fmtPct(r.pct_of_total)}</td></tr>`).join('')}
           </tbody>
         </table></div>
       </div>
@@ -340,8 +350,8 @@ function renderGeneric(data) {
       const countKey = 'count';
       html += `<div class="card" style="margin-bottom:var(--space-4);">
         <h4 style="margin-bottom:var(--space-3);">Primary Breakdown</h4>
-        ${p.denominator_note ? `<p class="denominator-note">${p.denominator_note}</p>` : ''}
-        ${p.null_note ? `<p class="denominator-note" style="margin-top:var(--space-2);">${p.null_note}</p>` : ''}
+        ${p.denominator_note ? `<p class="denominator-note">${esc(p.denominator_note)}</p>` : ''}
+        ${p.null_note ? `<p class="denominator-note" style="margin-top:var(--space-2);">${esc(p.null_note)}</p>` : ''}
         <div style="position:relative; height:220px; margin: var(--space-3) 0;">
           <canvas id="primary-chart"></canvas>
         </div>
@@ -355,7 +365,7 @@ function renderGeneric(data) {
             ${bd.map(r => {
               const label = r.status || r.leak_type || r.source || r.cause_group || r[firstKey] || '—';
               const pctVal = r.pct_of_sufferers ?? r.pct_of_sufferers_with_type ?? r.pct_of_members_with_source ?? r.pct_of_total ?? null;
-              return `<tr><td>${label}</td><td>${fmt(r[countKey])}</td><td>${fmtPct(pctVal)}</td></tr>`;
+              return `<tr><td>${esc(label)}</td><td>${fmt(r[countKey])}</td><td>${fmtPct(pctVal)}</td></tr>`;
             }).join('')}
           </tbody>
         </table></div>
@@ -406,7 +416,7 @@ function renderR7(data) {
     <tr>
       <th>Cause</th>
       <th>Total</th>
-      ${ltCols.map(lt => `<th>${ltLabels[lt] || lt}</th>`).join('')}
+      ${ltCols.map(lt => `<th>${ltLabels[lt] || esc(lt)}</th>`).join('')}
       <th>Row total</th>
     </tr></thead><tbody>`;
 
@@ -415,7 +425,7 @@ function renderR7(data) {
     const rowStyle = isGroup ? ' class="matrix-group-row"' : ' style="font-size:var(--font-size-sm);"';
     const indent = isGroup ? '' : '&nbsp;&nbsp;&nbsp;&nbsp;';
     matrixHtml += `<tr${rowStyle}>
-      <td>${indent}${row.label}</td>
+      <td>${indent}${esc(row.label)}</td>
       ${suppCell(row.total)}
       ${ltCols.map(lt => suppCell(row[lt])).join('')}
       ${suppCell(row.row_total)}
@@ -434,19 +444,19 @@ function renderR7(data) {
           <div><div class="label-small">p-value</div><div class="metric-value" style="font-size:var(--font-size-xl);">${chi.p_value}</div></div>
           <div><div class="label-small">Degrees of freedom</div><div class="metric-value" style="font-size:var(--font-size-xl);">${chi.degrees_of_freedom}</div></div>
         </div>
-        <p class="denominator-note" style="margin-top:var(--space-3);">${chi.note}</p>
+        <p class="denominator-note" style="margin-top:var(--space-3);">${esc(chi.note)}</p>
       </div>`;
     } else {
       chiHtml = `<div class="card" style="margin-top:var(--space-4); background:var(--color-bg-card);">
         <h4>Chi-Square Test</h4>
-        <p style="color:var(--color-text-muted); margin-top:var(--space-2);">${chi.note}</p>
+        <p style="color:var(--color-text-muted); margin-top:var(--space-2);">${esc(chi.note)}</p>
       </div>`;
     }
   }
 
   return `<div class="card" style="margin-bottom:var(--space-4);">
     <h4 style="margin-bottom:var(--space-3);">Cause × Leak Type Matrix</h4>
-    <p class="denominator-note">${data.denominator_note || ''}</p>
+    <p class="denominator-note">${esc(data.denominator_note || '')}</p>
     <p class="denominator-note" style="margin-top:var(--space-2);">Groups below 10 members are suppressed (—).</p>
     ${matrixHtml}
   </div>${chiHtml}`;
@@ -458,11 +468,11 @@ function renderR6(data) {
   let html = '';
   if (data.scope_note) {
     html += `<div class="card" style="background:var(--color-bg-card); border-left: 3px solid var(--color-warning); margin-bottom:var(--space-4);">
-      <p style="font-size:var(--font-size-sm);">⚠ ${data.scope_note}</p>
+      <p style="font-size:var(--font-size-sm);">⚠ ${esc(data.scope_note)}</p>
     </div>`;
   }
   if (!data.trend_charts_available) {
-    html += `<div class="card"><p style="color:var(--color-text-muted);">${data.trend_charts_note || 'Insufficient data.'}</p></div>`;
+    html += `<div class="card"><p style="color:var(--color-text-muted);">${esc(data.trend_charts_note || 'Insufficient data.')}</p></div>`;
     return html;
   }
   const years = data.by_year.map(r => r.year);
@@ -526,7 +536,7 @@ function renderR5(data) {
   let ukCountryHtml = ukCountries.length
     ? `<div class="table-scroll"><table class="data-table">
         <thead><tr><th>Country</th><th>Members</th></tr></thead>
-        <tbody>${ukCountries.map(r => `<tr><td>${r.country}</td><td>${fmt(r.count)}</td></tr>`).join('')}</tbody>
+        <tbody>${ukCountries.map(r => `<tr><td>${esc(r.country)}</td><td>${fmt(r.count)}</td></tr>`).join('')}</tbody>
        </table></div>`
     : `<p style="color:var(--color-text-muted);">No data.</p>`;
 
@@ -535,7 +545,7 @@ function renderR5(data) {
   let regionHtml = regions.length
     ? `<div class="table-scroll"><table class="data-table">
         <thead><tr><th>Region</th><th>Members</th></tr></thead>
-        <tbody>${regions.map(r => `<tr><td>${r.region}</td><td>${fmt(r.count)}</td></tr>`).join('')}</tbody>
+        <tbody>${regions.map(r => `<tr><td>${esc(r.region)}</td><td>${fmt(r.count)}</td></tr>`).join('')}</tbody>
        </table></div>`
     : `<p style="color:var(--color-text-muted);">No region data available.</p>`;
 
@@ -543,10 +553,10 @@ function renderR5(data) {
   const oc = (uk.outward_code_density || {});
   const ocData = oc.data || [];
   let ocHtml = ocData.length
-    ? `<p class="denominator-note" style="margin-bottom:var(--space-3);">${oc.note || ''}</p>
+    ? `<p class="denominator-note" style="margin-bottom:var(--space-3);">${esc(oc.note || '')}</p>
        <div class="table-scroll"><table class="data-table">
         <thead><tr><th>Outward code</th><th>Members</th></tr></thead>
-        <tbody>${ocData.slice(0, 50).map(r => `<tr><td>${r.outward_code}</td><td>${fmt(r.count)}</td></tr>`).join('')}</tbody>
+        <tbody>${ocData.slice(0, 50).map(r => `<tr><td>${esc(r.outward_code)}</td><td>${fmt(r.count)}</td></tr>`).join('')}</tbody>
        </table></div>
        ${ocData.length > 50 ? `<p class="denominator-note" style="margin-top:var(--space-2);">Showing top 50 of ${fmt(ocData.length)} outward codes.</p>` : ''}`
     : `<p style="color:var(--color-text-muted);">No postcode data available.</p>`;
@@ -554,10 +564,10 @@ function renderR5(data) {
   // European countries
   const euCountries = eu.by_country || [];
   let euHtml = euCountries.length
-    ? `<p class="denominator-note" style="margin-bottom:var(--space-3);">${eu.note || ''}</p>
+    ? `<p class="denominator-note" style="margin-bottom:var(--space-3);">${esc(eu.note || '')}</p>
        <div class="table-scroll"><table class="data-table">
         <thead><tr><th>Country</th><th>Members</th><th>% of European members</th></tr></thead>
-        <tbody>${euCountries.map(r => `<tr><td>${r.country}</td><td>${fmt(r.count)}</td><td>${fmtPct(r.pct)}</td></tr>`).join('')}</tbody>
+        <tbody>${euCountries.map(r => `<tr><td>${esc(r.country)}</td><td>${fmt(r.count)}</td><td>${fmtPct(r.pct)}</td></tr>`).join('')}</tbody>
        </table></div>`
     : `<p style="color:var(--color-text-muted);">No European member data.</p>`;
 

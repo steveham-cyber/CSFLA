@@ -217,11 +217,12 @@ function showResult(success, data) {
         </p>
       </div>`;
   } else {
-    el.innerHTML = `
-      <div style="padding:var(--space-4); background:#FFF0F4; border-radius:var(--radius-md); border-left: 3px solid var(--color-error);">
-        <strong style="color: var(--color-error);">✗ Import failed</strong>
-        <p style="margin-top:var(--space-2); font-size:var(--font-size-sm);">${data}</p>
-      </div>`;
+    el.innerHTML =
+      '<div style="padding:var(--space-4); background:#FFF0F4; border-radius:var(--radius-md); border-left: 3px solid var(--color-error);">' +
+      '<strong style="color: var(--color-error);">✗ Import failed</strong>' +
+      '<p class="error-detail" style="margin-top:var(--space-2); font-size:var(--font-size-sm);"></p>' +
+      '</div>';
+    el.querySelector('.error-detail').textContent = data;
   }
 }
 
