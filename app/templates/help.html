@@ -303,7 +303,7 @@ html {
 }
 </style>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 (function () {
   var sections = document.querySelectorAll('section[id]');
   var tocLinks = document.querySelectorAll('.toc-link');

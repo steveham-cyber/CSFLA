@@ -1,3 +1,4 @@
+import secrets
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -70,31 +71,28 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Jinja2 templates
 templates = Jinja2Templates(directory="templates")
 
-# Content-Security-Policy:
-# - default-src 'self'           — all other resource types locked to same origin
-# - style-src 'self' + Google Fonts CSS + 'unsafe-inline' for Google Fonts @import
-# - font-src 'self' + Google Fonts gstatic CDN
-# - script-src 'self' + 'unsafe-inline' for inline Chart.js configuration blocks
-#   (Chart.js itself is served from /static, not an external CDN)
-# - img-src 'self' data:         — data: URIs needed for Chart.js canvas export
-_CSP = (
-    "default-src 'self'; "
-    "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
-    "font-src 'self' https://fonts.gstatic.com; "
-    "script-src 'self' 'unsafe-inline'; "
-    "img-src 'self' data:; "
-    "connect-src 'self'; "
-    "frame-ancestors 'none'"
-)
-
-# Security headers on every response
+# Security headers on every response.
+# A fresh nonce is generated per request and embedded in the CSP header and
+# in every inline <script> tag via request.state.csp_nonce.  This eliminates
+# the need for 'unsafe-inline' in script-src.
 @app.middleware("http")
 async def security_headers(request, call_next):
+    nonce = secrets.token_hex(16)
+    request.state.csp_nonce = nonce
     response = await call_next(request)
+    csp = (
+        "default-src 'self'; "
+        "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        f"script-src 'self' 'nonce-{nonce}'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
     response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["Content-Security-Policy"] = _CSP
+    response.headers["Content-Security-Policy"] = csp
     response.headers["Referrer-Policy"] = "no-referrer"
     return response
 

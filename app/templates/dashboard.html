@@ -97,7 +97,7 @@
 
 </div>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 const CHART_COLORS = [
   getComputedStyle(document.documentElement).getPropertyValue('--chart-1').trim(),
   getComputedStyle(document.documentElement).getPropertyValue('--chart-2').trim(),

@@ -82,7 +82,7 @@
   </div>
 </div>
 
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 function openExportModal() {
   document.getElementById('export-error').style.display = 'none';
   document.getElementById('export-modal').style.display = 'flex';
