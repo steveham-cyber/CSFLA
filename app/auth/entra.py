@@ -13,11 +13,14 @@ Role mapping:
   Roles: admin | researcher | viewer
 """
 
+import logging
 import msal
 from fastapi import HTTPException, Request, status
 from functools import lru_cache
 
 from config import get_settings
+
+log = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -54,9 +57,14 @@ def exchange_code_for_token(code: str, redirect_uri: str) -> dict:
         redirect_uri=redirect_uri,
     )
     if "error" in result:
+        log.warning(
+            "MSAL token exchange failed: %s — %s",
+            result["error"],
+            result.get("error_description", "no description"),
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Authentication failed: {result.get('error_description', result['error'])}",
+            detail="Authentication failed.",
         )
     return result
 
