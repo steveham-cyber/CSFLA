@@ -1,5 +1,14 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
+
+from pydantic import model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_KNOWN_WEAK_KEYS = {
+    "change-this-to-a-random-string-for-local-dev",
+    "secret",
+    "changeme",
+    "insecure",
+}
 
 
 class Settings(BaseSettings):
@@ -31,6 +40,16 @@ class Settings(BaseSettings):
 
     # Anthropic — intentionally absent until DPA is in place
     # anthropic_api_key: str = ""
+
+    @model_validator(mode='after')
+    def validate_secret_key(self) -> 'Settings':
+        if self.secret_key in _KNOWN_WEAK_KEYS or len(self.secret_key) < 32:
+            raise ValueError(
+                "SECRET_KEY is weak or is a known placeholder. "
+                "Generate a proper key with: "
+                "python -c \"import secrets; print(secrets.token_hex(32))\""
+            )
+        return self
 
     @property
     def is_local(self) -> bool:

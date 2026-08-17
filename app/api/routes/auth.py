@@ -38,6 +38,7 @@ async def callback(request: Request, code: str, state: str):
     redirect_uri = _callback_uri(request)
     token_result = exchange_code_for_token(code=code, redirect_uri=redirect_uri)
 
+    request.session.clear()
     request.session["user"] = {
         "oid": token_result["id_token_claims"]["oid"],
         "name": token_result["id_token_claims"].get("name", ""),
