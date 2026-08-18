@@ -1,4 +1,6 @@
 import secrets
+import time
+
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
@@ -44,6 +46,8 @@ async def callback(request: Request, code: str, state: str):
         "name": token_result["id_token_claims"].get("name", ""),
         "roles": token_result["id_token_claims"].get("roles", []),
     }
+    request.session["home_account_id"] = token_result["account"]["home_account_id"]
+    request.session["roles_validated_at"] = time.time()
     return RedirectResponse("/")
 
 

@@ -102,7 +102,11 @@ def _sign_session(user: CurrentUser) -> str:
 
     Mirrors the encoding used by starlette.middleware.sessions.SessionMiddleware
     so that _require_ui_user (which reads request.session) finds the user in tests.
+
+    roles_validated_at is set to far in the future so tests never trigger the
+    MSAL re-validation branch in get_current_user.
     """
+    import time
     from base64 import b64encode
     from itsdangerous import TimestampSigner
     from config import get_settings
@@ -112,7 +116,9 @@ def _sign_session(user: CurrentUser) -> str:
             "oid": user.id,
             "name": user.name,
             "roles": user.roles,
-        }
+        },
+        "home_account_id": f"test-account-{user.id}",
+        "roles_validated_at": time.time() + 3600,  # Far future — skip re-validation in tests
     }
     data = b64encode(json.dumps(session_data).encode())
     return TimestampSigner(str(get_settings().secret_key)).sign(data).decode()
