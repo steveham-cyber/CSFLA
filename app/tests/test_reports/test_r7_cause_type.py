@@ -198,7 +198,7 @@ async def test_r7_empty_cohort_no_crash(db_session: AsyncSession):
     assert isinstance(result["matrix"], list)
     # All group rows should be present (from CAUSE_GROUP_ORDER iteration)
     group_labels = {r["label"] for r in result["matrix"] if r["type"] == "group"}
-    assert len(group_labels) == 5
+    assert len(group_labels) == 7  # Iatrogenic, CTD, Spontaneous/Structural, IIH-Related, Traumatic, Other, Unknown
 
     chi = result["chi_square_test"]
     assert chi["valid"] is False

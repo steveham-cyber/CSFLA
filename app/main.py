@@ -1,3 +1,6 @@
+import secrets
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
@@ -12,8 +15,28 @@ from api.routes import ui
 
 settings = get_settings()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Create database tables on startup if they don't already exist."""
+    from db.models import Base
+    if settings.is_local:
+        from db.connection import _get_local_engine
+        engine = _get_local_engine()
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    else:
+        from db.connection import _create_azure_engine
+        engine = await _create_azure_engine()
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        await engine.dispose()
+    yield
+
+
 app = FastAPI(
     title="CSFLA Research Application",
+    lifespan=lifespan,
     docs_url="/docs" if settings.is_local else None,  # Disable Swagger in production
     redoc_url=None,
 )
@@ -48,31 +71,28 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Jinja2 templates
 templates = Jinja2Templates(directory="templates")
 
-# Content-Security-Policy:
-# - default-src 'self'           — all other resource types locked to same origin
-# - style-src 'self' + Google Fonts CSS + 'unsafe-inline' for Google Fonts @import
-# - font-src 'self' + Google Fonts gstatic CDN
-# - script-src 'self' + 'unsafe-inline' for inline Chart.js configuration blocks
-#   (Chart.js itself is served from /static, not an external CDN)
-# - img-src 'self' data:         — data: URIs needed for Chart.js canvas export
-_CSP = (
-    "default-src 'self'; "
-    "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
-    "font-src 'self' https://fonts.gstatic.com; "
-    "script-src 'self' 'unsafe-inline'; "
-    "img-src 'self' data:; "
-    "connect-src 'self'; "
-    "frame-ancestors 'none'"
-)
-
-# Security headers on every response
+# Security headers on every response.
+# A fresh nonce is generated per request and embedded in the CSP header and
+# in every inline <script> tag via request.state.csp_nonce.  This eliminates
+# the need for 'unsafe-inline' in script-src.
 @app.middleware("http")
 async def security_headers(request, call_next):
+    nonce = secrets.token_hex(16)
+    request.state.csp_nonce = nonce
     response = await call_next(request)
+    csp = (
+        "default-src 'self'; "
+        "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        f"script-src 'self' 'nonce-{nonce}'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
     response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["Content-Security-Policy"] = _CSP
+    response.headers["Content-Security-Policy"] = csp
     response.headers["Referrer-Policy"] = "no-referrer"
     return response
 
